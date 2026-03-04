@@ -31,17 +31,35 @@ export interface Position {
 
 // ==================== Orders ====================
 
+/** IBKR-aligned order types. Providers return error for unsupported types. */
+export type OrderType =
+  | 'market'
+  | 'limit'
+  | 'stop'
+  | 'stop_limit'
+  | 'trailing_stop'
+  | 'trailing_stop_limit'
+  | 'moc'
+
+/** IBKR-aligned time-in-force values. */
+export type TimeInForce = 'day' | 'gtc' | 'ioc' | 'fok' | 'opg' | 'gtd'
+
 export interface OrderRequest {
   contract: Contract
   side: 'buy' | 'sell'
-  type: 'market' | 'limit' | 'stop' | 'stop_limit'
+  type: OrderType
   qty?: number
   notional?: number
-  price?: number
-  stopPrice?: number
+  price?: number                // limit price (IBKR: lmtPrice)
+  stopPrice?: number            // stop trigger price (IBKR: auxPrice for STP)
+  trailingAmount?: number       // trailing stop absolute offset (IBKR: auxPrice for TRAIL)
+  trailingPercent?: number      // trailing stop percentage
   reduceOnly?: boolean
-  timeInForce?: 'day' | 'gtc' | 'ioc' | 'fok'
-  extendedHours?: boolean
+  timeInForce?: TimeInForce
+  goodTillDate?: string         // ISO date for GTD orders
+  extendedHours?: boolean       // IBKR: outsideRth
+  parentId?: string             // bracket order: child references parent
+  ocaGroup?: string             // One-Cancels-All group name
 }
 
 export interface OrderResult {
@@ -57,13 +75,18 @@ export interface Order {
   id: string
   contract: Contract
   side: 'buy' | 'sell'
-  type: 'market' | 'limit' | 'stop' | 'stop_limit'
+  type: OrderType
   qty: number
   price?: number
   stopPrice?: number
+  trailingAmount?: number
+  trailingPercent?: number
   reduceOnly?: boolean
-  timeInForce?: 'day' | 'gtc' | 'ioc' | 'fok'
+  timeInForce?: TimeInForce
+  goodTillDate?: string
   extendedHours?: boolean
+  parentId?: string
+  ocaGroup?: string
   status: 'pending' | 'filled' | 'cancelled' | 'rejected' | 'partially_filled'
   filledPrice?: number
   filledQty?: number
@@ -128,7 +151,7 @@ export interface MarketClock {
 
 export interface AccountCapabilities {
   supportedSecTypes: SecType[]
-  supportedOrderTypes: OrderRequest['type'][]
+  supportedOrderTypes: OrderType[]
 }
 
 // ==================== ITradingAccount ====================
@@ -155,6 +178,7 @@ export interface ITradingAccount {
   // ---- Trading operations ----
 
   placeOrder(order: OrderRequest): Promise<OrderResult>
+  modifyOrder(orderId: string, changes: Partial<OrderRequest>): Promise<OrderResult>
   cancelOrder(orderId: string): Promise<boolean>
   closePosition(contract: Contract, qty?: number): Promise<OrderResult>
 

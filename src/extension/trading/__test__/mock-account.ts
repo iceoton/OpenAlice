@@ -121,6 +121,9 @@ export class MockTradingAccount implements ITradingAccount {
   placeOrder = vi.fn<(order: OrderRequest) => Promise<OrderResult>>()
     .mockResolvedValue(makeOrderResult())
 
+  modifyOrder = vi.fn<(orderId: string, changes: Partial<OrderRequest>) => Promise<OrderResult>>()
+    .mockResolvedValue(makeOrderResult())
+
   cancelOrder = vi.fn<(orderId: string) => Promise<boolean>>()
     .mockResolvedValue(true)
 

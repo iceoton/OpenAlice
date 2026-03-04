@@ -175,6 +175,59 @@ describe('createOperationDispatcher', () => {
     })
   })
 
+  // ==================== modifyOrder ====================
+
+  describe('modifyOrder', () => {
+    it('calls account.modifyOrder with orderId and changes', async () => {
+      const op: Operation = {
+        action: 'modifyOrder',
+        params: { orderId: 'ord-123', price: 155, qty: 20 },
+      }
+
+      const result = await dispatch(op) as Record<string, unknown>
+
+      expect(account.modifyOrder).toHaveBeenCalledTimes(1)
+      const [orderId, changes] = account.modifyOrder.mock.calls[0]
+      expect(orderId).toBe('ord-123')
+      expect(changes.price).toBe(155)
+      expect(changes.qty).toBe(20)
+      expect(result.success).toBe(true)
+    })
+
+    it('returns order info on success', async () => {
+      account.modifyOrder.mockResolvedValue(makeOrderResult({
+        orderId: 'ord-123',
+        filledPrice: undefined,
+        filledQty: undefined,
+      }))
+
+      const op: Operation = {
+        action: 'modifyOrder',
+        params: { orderId: 'ord-123', price: 160 },
+      }
+
+      const result = await dispatch(op) as Record<string, unknown>
+      expect(result.success).toBe(true)
+      const order = result.order as Record<string, unknown>
+      expect(order.id).toBe('ord-123')
+      expect(order.status).toBe('pending')
+    })
+
+    it('returns error on failure', async () => {
+      account.modifyOrder.mockResolvedValue({ success: false, error: 'Order not found' })
+
+      const op: Operation = {
+        action: 'modifyOrder',
+        params: { orderId: 'ord-999', price: 100 },
+      }
+
+      const result = await dispatch(op) as Record<string, unknown>
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Order not found')
+      expect(result.order).toBeUndefined()
+    })
+  })
+
   // ==================== unknown action ====================
 
   describe('unknown action', () => {

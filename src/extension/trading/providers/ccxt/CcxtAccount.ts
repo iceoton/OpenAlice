@@ -271,6 +271,38 @@ export class CcxtAccount implements ITradingAccount {
     }
   }
 
+  async modifyOrder(orderId: string, changes: Partial<OrderRequest>): Promise<OrderResult> {
+    this.ensureInit()
+    this.ensureWritable()
+
+    try {
+      const ccxtSymbol = this.orderSymbolCache.get(orderId)
+      if (!ccxtSymbol) {
+        return { success: false, error: `Unknown order ${orderId} — cannot resolve symbol for edit` }
+      }
+
+      // editOrder requires type and side — fetch the original order to fill in defaults
+      const original = await this.exchange.fetchOrder(orderId, ccxtSymbol)
+      const result = await this.exchange.editOrder(
+        orderId,
+        ccxtSymbol,
+        (changes.type as string) ?? original.type,
+        original.side,
+        changes.qty ?? original.amount,
+        changes.price ?? original.price,
+      )
+
+      return {
+        success: true,
+        orderId: result.id,
+        filledPrice: result.average ?? undefined,
+        filledQty: result.filled ?? undefined,
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
   async closePosition(contract: Contract, qty?: number): Promise<OrderResult> {
     this.ensureInit()
     this.ensureWritable()

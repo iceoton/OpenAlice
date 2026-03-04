@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MaxPositionSizeGuard } from './max-position-size.js'
-import { MaxLeverageGuard } from './max-leverage.js'
 import { CooldownGuard } from './cooldown.js'
 import { SymbolWhitelistGuard } from './symbol-whitelist.js'
 import { createGuardPipeline } from './guard-pipeline.js'
@@ -108,81 +107,6 @@ describe('MaxPositionSizeGuard', () => {
       operation: {
         action: 'placeOrder',
         params: { symbol: 'NEW_STOCK', side: 'buy', type: 'market', qty: 100 },
-      },
-    })
-    expect(guard.check(ctx)).toBeNull()
-  })
-})
-
-// ==================== MaxLeverageGuard ====================
-
-describe('MaxLeverageGuard', () => {
-  it('allows leverage within limit', () => {
-    const guard = new MaxLeverageGuard({ maxLeverage: 10 })
-    const ctx = makeContext({
-      operation: {
-        action: 'placeOrder',
-        params: { symbol: 'BTCUSDT', side: 'buy', type: 'market', qty: 1, leverage: 5 },
-      },
-    })
-    expect(guard.check(ctx)).toBeNull()
-  })
-
-  it('rejects leverage exceeding limit', () => {
-    const guard = new MaxLeverageGuard({ maxLeverage: 10 })
-    const ctx = makeContext({
-      operation: {
-        action: 'placeOrder',
-        params: { symbol: 'BTCUSDT', side: 'buy', type: 'market', qty: 1, leverage: 15 },
-      },
-    })
-
-    const result = guard.check(ctx)
-    expect(result).not.toBeNull()
-    expect(result).toContain('15x')
-    expect(result).toContain('10x')
-  })
-
-  it('checks adjustLeverage operations', () => {
-    const guard = new MaxLeverageGuard({ maxLeverage: 10 })
-    const ctx = makeContext({
-      operation: {
-        action: 'adjustLeverage',
-        params: { symbol: 'BTCUSDT', newLeverage: 20 },
-      },
-    })
-    expect(guard.check(ctx)).not.toBeNull()
-  })
-
-  it('supports per-symbol overrides', () => {
-    const guard = new MaxLeverageGuard({
-      maxLeverage: 10,
-      symbolOverrides: { BTCUSDT: 3 },
-    })
-
-    const btcCtx = makeContext({
-      operation: {
-        action: 'placeOrder',
-        params: { symbol: 'BTCUSDT', side: 'buy', type: 'market', qty: 1, leverage: 5 },
-      },
-    })
-    expect(guard.check(btcCtx)).toContain('5x exceeds limit 3x')
-
-    const ethCtx = makeContext({
-      operation: {
-        action: 'placeOrder',
-        params: { symbol: 'ETHUSDT', side: 'buy', type: 'market', qty: 1, leverage: 5 },
-      },
-    })
-    expect(guard.check(ethCtx)).toBeNull()
-  })
-
-  it('skips operations without leverage', () => {
-    const guard = new MaxLeverageGuard({ maxLeverage: 1 })
-    const ctx = makeContext({
-      operation: {
-        action: 'placeOrder',
-        params: { symbol: 'AAPL', side: 'buy', type: 'market', qty: 1 },
       },
     })
     expect(guard.check(ctx)).toBeNull()
@@ -341,11 +265,11 @@ describe('createGuardPipeline', () => {
 describe('resolveGuards', () => {
   it('resolves builtin guard types', () => {
     const guards = resolveGuards([
-      { type: 'max-leverage', options: { maxLeverage: 5 } },
+      { type: 'max-position-size', options: { maxPercentOfEquity: 25 } },
       { type: 'symbol-whitelist', options: { symbols: ['AAPL'] } },
     ])
     expect(guards).toHaveLength(2)
-    expect(guards[0].name).toBe('max-leverage')
+    expect(guards[0].name).toBe('max-position-size')
     expect(guards[1].name).toBe('symbol-whitelist')
   })
 

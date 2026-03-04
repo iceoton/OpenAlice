@@ -484,7 +484,7 @@ async function main() {
     accountManager.addAccount(readyAccount)
     accountSetups.set(readyAccount.id, { setup, gitFilePath: CRYPTO_GIT_FILE })
 
-    // Register CCXT-specific tools (getFundingRate, getOrderBook, adjustLeverage)
+    // Register CCXT-specific tools (getFundingRate, getOrderBook)
     toolCenter.register(
       CcxtAccount.createProviderTools({
         accountManager,

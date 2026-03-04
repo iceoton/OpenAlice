@@ -456,7 +456,7 @@ NOTE: This stages the operation. Call tradingCommit + tradingPush to execute.`,
         symbol: z.string().describe('Ticker symbol, e.g. "AAPL", "SPY"'),
         side: z.enum(['buy', 'sell']).describe('Buy or sell'),
         type: z
-          .enum(['market', 'limit', 'stop', 'stop_limit'])
+          .enum(['market', 'limit', 'stop', 'stop_limit', 'trailing_stop', 'trailing_stop_limit', 'moc'])
           .describe('Order type'),
         qty: z
           .number()
@@ -484,18 +484,40 @@ NOTE: This stages the operation. Call tradingCommit + tradingPush to execute.`,
           .describe(
             'Stop trigger price (required for stop and stop_limit orders)',
           ),
+        trailingAmount: z
+          .number()
+          .positive()
+          .optional()
+          .describe('Trailing stop absolute offset in dollars (for trailing_stop/trailing_stop_limit)'),
+        trailingPercent: z
+          .number()
+          .positive()
+          .optional()
+          .describe('Trailing stop percentage (for trailing_stop/trailing_stop_limit)'),
         reduceOnly: z
           .boolean()
           .optional()
           .describe('Only reduce position (close only)'),
         timeInForce: z
-          .enum(['day', 'gtc', 'ioc', 'fok'])
+          .enum(['day', 'gtc', 'ioc', 'fok', 'opg', 'gtd'])
           .default('day')
           .describe('Time in force (default: day)'),
+        goodTillDate: z
+          .string()
+          .optional()
+          .describe('Expiration date for GTD orders (ISO date string)'),
         extendedHours: z
           .boolean()
           .optional()
           .describe('Allow pre-market and after-hours trading'),
+        parentId: z
+          .string()
+          .optional()
+          .describe('Parent order ID for bracket orders (child references parent)'),
+        ocaGroup: z
+          .string()
+          .optional()
+          .describe('One-Cancels-All group name'),
       }),
       execute: ({
         source,
@@ -506,9 +528,14 @@ NOTE: This stages the operation. Call tradingCommit + tradingPush to execute.`,
         notional,
         price,
         stopPrice,
+        trailingAmount,
+        trailingPercent,
         reduceOnly,
         timeInForce,
+        goodTillDate,
         extendedHours,
+        parentId,
+        ocaGroup,
       }) => {
         const { id } = resolveOne(accountManager, source)
         const git = requireGit(resolver, id)
@@ -522,10 +549,52 @@ NOTE: This stages the operation. Call tradingCommit + tradingPush to execute.`,
             notional,
             price,
             stopPrice,
+            trailingAmount,
+            trailingPercent,
             reduceOnly,
             timeInForce,
+            goodTillDate,
             extendedHours,
+            parentId,
+            ocaGroup,
           },
+        })
+      },
+    }),
+
+    // ==================== Modify Order (mutation, source required) ====================
+
+    modifyOrder: tool({
+      description: `Stage an order modification (will execute on tradingPush).
+
+Modifies an existing pending order's price, quantity, or other parameters without cancelling and re-placing.
+IBKR-style replace semantics: the order keeps its ID but parameters change.
+
+NOTE: This stages the operation. Call tradingCommit + tradingPush to execute.`,
+      inputSchema: z.object({
+        source: z.string().describe(sourceDesc(true)),
+        orderId: z.string().describe('Order ID to modify'),
+        qty: z.number().positive().optional().describe('New quantity'),
+        price: z.number().positive().optional().describe('New limit price'),
+        stopPrice: z.number().positive().optional().describe('New stop trigger price'),
+        trailingAmount: z.number().positive().optional().describe('New trailing stop offset'),
+        trailingPercent: z.number().positive().optional().describe('New trailing stop percentage'),
+        type: z
+          .enum(['market', 'limit', 'stop', 'stop_limit', 'trailing_stop', 'trailing_stop_limit', 'moc'])
+          .optional()
+          .describe('New order type'),
+        timeInForce: z
+          .enum(['day', 'gtc', 'ioc', 'fok', 'opg', 'gtd'])
+          .optional()
+          .describe('New time in force'),
+        goodTillDate: z.string().optional().describe('New expiration date for GTD orders'),
+      }),
+      execute: ({ source, orderId, ...changes }) => {
+        const { id } = resolveOne(accountManager, source)
+        const git = requireGit(resolver, id)
+        return git.add({
+          action: 'modifyOrder',
+          params: { orderId, ...changes },
         })
       },
     }),

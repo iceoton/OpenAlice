@@ -16,9 +16,9 @@ export type CommitHash = string
 
 export type OperationAction =
   | 'placeOrder'
+  | 'modifyOrder'
   | 'closePosition'
   | 'cancelOrder'
-  | 'adjustLeverage'
   | 'syncOrders'
 
 export interface Operation {

@@ -217,11 +217,14 @@ export class TradingGit implements ITradingGit {
         return `close (${result?.status || 'unknown'})`
       }
 
+      case 'modifyOrder': {
+        const orderId = params.orderId as string
+        const changes = Object.keys(params).filter(k => k !== 'orderId')
+        return `modified ${orderId} (${changes.join(', ')})`
+      }
+
       case 'cancelOrder':
         return `cancelled order ${params.orderId}`
-
-      case 'adjustLeverage':
-        return `leverage → ${params.newLeverage}x`
 
       case 'syncOrders': {
         const status = result?.status || 'unknown'
@@ -518,7 +521,7 @@ export class TradingGit implements ITradingGit {
     }
 
     if (!order) {
-      // Operations without an order result (e.g. adjustLeverage)
+      // Operations without an order result
       return { action: op.action, success: true, status: 'filled', raw }
     }
 

@@ -150,7 +150,7 @@ export class AlpacaAccount implements ITradingAccount {
       const alpacaOrder: Record<string, unknown> = {
         symbol,
         side: order.side,
-        type: order.type,
+        type: order.type === 'trailing_stop' ? 'trailing_stop' : order.type,
         time_in_force: order.timeInForce ?? 'day',
       }
 
@@ -162,9 +162,35 @@ export class AlpacaAccount implements ITradingAccount {
 
       if (order.price != null) alpacaOrder.limit_price = order.price
       if (order.stopPrice != null) alpacaOrder.stop_price = order.stopPrice
+      if (order.trailingAmount != null) alpacaOrder.trail_price = order.trailingAmount
+      if (order.trailingPercent != null) alpacaOrder.trail_percent = order.trailingPercent
       if (order.extendedHours != null) alpacaOrder.extended_hours = order.extendedHours
 
       const result = await this.client.createOrder(alpacaOrder) as AlpacaOrderRaw
+      const isFilled = result.status === 'filled'
+
+      return {
+        success: true,
+        orderId: result.id,
+        filledPrice: isFilled && result.filled_avg_price ? parseFloat(result.filled_avg_price) : undefined,
+        filledQty: isFilled && result.filled_qty ? parseFloat(result.filled_qty) : undefined,
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  async modifyOrder(orderId: string, changes: Partial<OrderRequest>): Promise<OrderResult> {
+    try {
+      const patch: Record<string, unknown> = {}
+      if (changes.qty != null) patch.qty = changes.qty
+      if (changes.price != null) patch.limit_price = changes.price
+      if (changes.stopPrice != null) patch.stop_price = changes.stopPrice
+      if (changes.trailingAmount != null) patch.trail = changes.trailingAmount
+      if (changes.trailingPercent != null) patch.trail = changes.trailingPercent
+      if (changes.timeInForce) patch.time_in_force = changes.timeInForce
+
+      const result = await this.client.replaceOrder(orderId, patch) as AlpacaOrderRaw
       const isFilled = result.status === 'filled'
 
       return {
@@ -296,7 +322,7 @@ export class AlpacaAccount implements ITradingAccount {
   getCapabilities(): AccountCapabilities {
     return {
       supportedSecTypes: ['STK'],
-      supportedOrderTypes: ['market', 'limit', 'stop', 'stop_limit'],
+      supportedOrderTypes: ['market', 'limit', 'stop', 'stop_limit', 'trailing_stop'],
     }
   }
 
