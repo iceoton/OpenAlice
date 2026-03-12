@@ -13,7 +13,8 @@
 
 import type { MediaAttachment } from './types.js'
 import type { SessionStore } from './session.js'
-import type { AskOptions } from './ai-provider.js'
+import type { AskOptions, ProviderResult } from './ai-provider.js'
+import type { StreamableResult } from './ai-provider.js'
 import type { AgentCenter } from './agent-center.js'
 
 // ==================== Types ====================
@@ -41,12 +42,12 @@ export class Engine {
   // ==================== Public API ====================
 
   /** Simple prompt (no session context). Routed through the configured AI provider. */
-  async ask(prompt: string): Promise<EngineResult> {
+  async ask(prompt: string): Promise<ProviderResult> {
     return this.agentCenter.ask(prompt)
   }
 
-  /** Prompt with session — routed through the configured AI provider. */
-  async askWithSession(prompt: string, session: SessionStore, opts?: AskOptions): Promise<EngineResult> {
+  /** Prompt with session — routed through the configured AI provider. Returns StreamableResult. */
+  askWithSession(prompt: string, session: SessionStore, opts?: AskOptions): StreamableResult {
     return this.agentCenter.askWithSession(prompt, session, opts)
   }
 }

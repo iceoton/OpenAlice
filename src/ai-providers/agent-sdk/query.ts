@@ -26,6 +26,8 @@ export interface AgentSdkConfig {
   cwd?: string
   systemPrompt?: string
   appendSystemPrompt?: string
+  /** Called for each tool_use block in the stream. */
+  onToolUse?: (toolUse: { id: string; name: string; input: unknown }) => void
   /** Called for each tool_result in the stream. */
   onToolResult?: (toolResult: { toolUseId: string; content: string }) => void
 }
@@ -101,6 +103,7 @@ export async function askAgentSdk(
     maxTurns = 20,
     cwd = process.cwd(),
     systemPrompt,
+    onToolUse,
     onToolResult,
   } = config
 
@@ -155,6 +158,7 @@ export async function askAgentSdk(
               logToolCall(block.name, block.input)
               logger.info({ tool: block.name, input: block.input }, 'tool_use')
               blocks.push({ type: 'tool_use', id: block.id, name: block.name, input: block.input })
+              onToolUse?.({ id: block.id, name: block.name, input: block.input })
             } else if (block.type === 'text') {
               blocks.push({ type: 'text', text: block.text })
             }

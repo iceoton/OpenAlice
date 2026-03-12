@@ -62,6 +62,7 @@ export async function askClaudeCode(
     cwd = process.cwd(),
     systemPrompt,
     appendSystemPrompt,
+    onToolUse,
     onToolResult,
   } = config
 
@@ -127,6 +128,7 @@ export async function askClaudeCode(
                 logToolCall(block.name, block.input)
                 logger.info({ tool: block.name, input: block.input }, 'tool_use')
                 blocks.push({ type: 'tool_use', id: block.id, name: block.name, input: block.input })
+                onToolUse?.({ id: block.id, name: block.name, input: block.input })
               } else if (block.type === 'text') {
                 blocks.push({ type: 'text', text: block.text })
               }

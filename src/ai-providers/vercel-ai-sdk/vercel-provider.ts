@@ -7,7 +7,7 @@
  */
 
 import type { ModelMessage, Tool } from 'ai'
-import type { AIProvider, AskOptions, ProviderResult } from '../../core/ai-provider.js'
+import { type AIProvider, type AskOptions, type ProviderResult, type ProviderEvent, StreamableResult } from '../../core/ai-provider.js'
 import type { Agent } from './agent.js'
 import type { SessionStore } from '../../core/session.js'
 import type { CompactionConfig } from '../../core/compaction.js'
@@ -17,6 +17,7 @@ import { compactIfNeeded } from '../../core/compaction.js'
 import { extractMediaFromToolOutput } from '../../core/media.js'
 import { createModelFromConfig, type ModelOverride } from '../../core/model-factory.js'
 import { createAgent } from './agent.js'
+import { createChannel } from '../../core/async-channel.js'
 
 export class VercelAIProvider implements AIProvider {
   private cachedKey: string | null = null
@@ -71,36 +72,58 @@ export class VercelAIProvider implements AIProvider {
     return { text: result.text ?? '', media }
   }
 
-  async askWithSession(prompt: string, session: SessionStore, opts?: AskOptions): Promise<ProviderResult> {
-    // historyPreamble and maxHistoryEntries are not used: Vercel passes native ModelMessage[] with no text wrapping needed.
-    const agent = await this.resolveAgent(opts?.systemPrompt, opts?.disabledTools, opts?.vercelAiSdk)
+  askWithSession(prompt: string, session: SessionStore, opts?: AskOptions): StreamableResult {
+    const self = this
+    async function* generate(): AsyncGenerator<ProviderEvent> {
+      // historyPreamble and maxHistoryEntries are not used: Vercel passes native ModelMessage[] with no text wrapping needed.
+      const agent = await self.resolveAgent(opts?.systemPrompt, opts?.disabledTools, opts?.vercelAiSdk)
 
-    await session.appendUser(prompt, 'human')
+      await session.appendUser(prompt, 'human')
 
-    const compactionResult = await compactIfNeeded(
-      session,
-      this.compaction,
-      async (summarizePrompt) => {
-        const r = await agent.generate({ prompt: summarizePrompt })
-        return r.text ?? ''
-      },
-    )
+      const compactionResult = await compactIfNeeded(
+        session,
+        self.compaction,
+        async (summarizePrompt) => {
+          const r = await agent.generate({ prompt: summarizePrompt })
+          return r.text ?? ''
+        },
+      )
 
-    const entries = compactionResult.activeEntries ?? await session.readActive()
-    const messages = toModelMessages(entries)
+      const entries = compactionResult.activeEntries ?? await session.readActive()
+      const messages = toModelMessages(entries)
 
-    const media: MediaAttachment[] = []
-    const result = await agent.generate({
-      messages: messages as ModelMessage[],
-      onStepFinish: (step) => {
-        for (const tr of step.toolResults) {
-          media.push(...extractMediaFromToolOutput(tr.output))
-        }
-      },
-    })
+      // Bridge onStepFinish callback to channel for streaming
+      const channel = createChannel<ProviderEvent>()
+      const media: MediaAttachment[] = []
 
-    const text = result.text ?? ''
-    await session.appendAssistant(text, 'vercel-ai')
-    return { text, media }
+      const resultPromise = agent.generate({
+        messages: messages as ModelMessage[],
+        onStepFinish: (step) => {
+          for (const tc of step.toolCalls) {
+            channel.push({ type: 'tool_use', id: tc.toolCallId, name: tc.toolName, input: tc.input })
+          }
+          for (const tr of step.toolResults) {
+            media.push(...extractMediaFromToolOutput(tr.output))
+            const content = typeof tr.output === 'string' ? tr.output : JSON.stringify(tr.output ?? '')
+            channel.push({ type: 'tool_result', tool_use_id: tr.toolCallId, content })
+          }
+          if (step.text) {
+            channel.push({ type: 'text', text: step.text })
+          }
+        },
+      })
+
+      resultPromise.then(() => channel.close()).catch((err) => channel.error(err instanceof Error ? err : new Error(String(err))))
+
+      // Yield streamed events from channel
+      yield* channel
+
+      const result = await resultPromise
+      const text = result.text ?? ''
+      await session.appendAssistant(text, 'vercel-ai')
+
+      yield { type: 'done', result: { text, media } }
+    }
+    return new StreamableResult(generate())
   }
 }

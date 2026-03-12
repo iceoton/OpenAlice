@@ -9,7 +9,7 @@
  */
 
 import { resolve } from 'node:path'
-import type { AIProvider, AskOptions, ProviderResult } from '../../core/ai-provider.js'
+import { type AIProvider, type AskOptions, type ProviderResult, type ProviderEvent, StreamableResult } from '../../core/ai-provider.js'
 import type { SessionStore } from '../../core/session.js'
 import type { CompactionConfig } from '../../core/compaction.js'
 import type { ClaudeCodeConfig } from './types.js'
@@ -39,18 +39,23 @@ export class ClaudeCodeProvider implements AIProvider {
     return { text: result.text, media: [] }
   }
 
-  async askWithSession(prompt: string, session: SessionStore, opts?: AskOptions): Promise<ProviderResult> {
-    const config = await this.resolveConfig()
-    // Merge per-channel disabledTools with global disallowedTools
-    const claudeCode = opts?.disabledTools?.length
-      ? { ...config, disallowedTools: [...(config.disallowedTools ?? []), ...opts.disabledTools] }
-      : config
-    return askClaudeCodeWithSession(prompt, session, {
-      claudeCode,
-      compaction: this.compaction,
-      historyPreamble: opts?.historyPreamble,
-      systemPrompt: opts?.systemPrompt ?? this.systemPrompt,
-      maxHistoryEntries: opts?.maxHistoryEntries,
-    })
+  askWithSession(prompt: string, session: SessionStore, opts?: AskOptions): StreamableResult {
+    // resolveConfig is async, so we wrap in a StreamableResult via an async generator
+    // that awaits config resolution before delegating to the session function.
+    const self = this
+    async function* generate(): AsyncGenerator<ProviderEvent> {
+      const config = await self.resolveConfig()
+      const claudeCode = opts?.disabledTools?.length
+        ? { ...config, disallowedTools: [...(config.disallowedTools ?? []), ...opts.disabledTools] }
+        : config
+      yield* askClaudeCodeWithSession(prompt, session, {
+        claudeCode,
+        compaction: self.compaction,
+        historyPreamble: opts?.historyPreamble,
+        systemPrompt: opts?.systemPrompt ?? self.systemPrompt,
+        maxHistoryEntries: opts?.maxHistoryEntries,
+      })
+    }
+    return new StreamableResult(generate())
   }
 }

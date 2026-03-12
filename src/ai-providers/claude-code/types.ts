@@ -16,6 +16,11 @@ export interface ClaudeCodeConfig {
   /** Append to Claude Code's default system prompt. */
   appendSystemPrompt?: string
   /**
+   * Called for each tool_use block in the JSONL stream.
+   * Use this to stream tool call events to consumers.
+   */
+  onToolUse?: (toolUse: { id: string; name: string; input: unknown }) => void
+  /**
    * Called for each tool_result block in the JSONL stream.
    * Use this to extract side-channel data (e.g. images) from tool results.
    */

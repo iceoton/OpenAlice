@@ -10,7 +10,7 @@
 
 import { resolve } from 'node:path'
 import type { Tool } from 'ai'
-import type { AIProvider, AskOptions, ProviderResult } from '../../core/ai-provider.js'
+import { type AIProvider, type AskOptions, type ProviderResult, type ProviderEvent, StreamableResult } from '../../core/ai-provider.js'
 import type { SessionStore } from '../../core/session.js'
 import type { CompactionConfig } from '../../core/compaction.js'
 import type { AgentSdkConfig, AgentSdkOverride } from './query.js'
@@ -49,27 +49,31 @@ export class AgentSdkProvider implements AIProvider {
     return { text: result.text, media: [] }
   }
 
-  async askWithSession(prompt: string, session: SessionStore, opts?: AskOptions): Promise<ProviderResult> {
-    const config = await this.resolveConfig()
+  askWithSession(prompt: string, session: SessionStore, opts?: AskOptions): StreamableResult {
+    const self = this
+    async function* generate(): AsyncGenerator<ProviderEvent> {
+      const config = await self.resolveConfig()
 
-    // Merge per-channel disabledTools with global disallowedTools
-    const agentSdk: AgentSdkConfig = opts?.disabledTools?.length
-      ? { ...config, disallowedTools: [...(config.disallowedTools ?? []), ...opts.disabledTools] }
-      : config
+      // Merge per-channel disabledTools with global disallowedTools
+      const agentSdk: AgentSdkConfig = opts?.disabledTools?.length
+        ? { ...config, disallowedTools: [...(config.disallowedTools ?? []), ...opts.disabledTools] }
+        : config
 
-    // Per-channel override (model/apiKey/baseUrl)
-    const override: AgentSdkOverride | undefined = opts?.agentSdk
+      // Per-channel override (model/apiKey/baseUrl)
+      const override: AgentSdkOverride | undefined = opts?.agentSdk
 
-    const mcpServer = await this.buildMcpServer(opts?.disabledTools)
+      const mcpServer = await self.buildMcpServer(opts?.disabledTools)
 
-    return askAgentSdkWithSession(prompt, session, {
-      agentSdk,
-      compaction: this.compaction,
-      historyPreamble: opts?.historyPreamble,
-      systemPrompt: opts?.systemPrompt ?? this.systemPrompt,
-      maxHistoryEntries: opts?.maxHistoryEntries,
-      override,
-      mcpServer,
-    })
+      yield* askAgentSdkWithSession(prompt, session, {
+        agentSdk,
+        compaction: self.compaction,
+        historyPreamble: opts?.historyPreamble,
+        systemPrompt: opts?.systemPrompt ?? self.systemPrompt,
+        maxHistoryEntries: opts?.maxHistoryEntries,
+        override,
+        mcpServer,
+      })
+    }
+    return new StreamableResult(generate())
   }
 }
