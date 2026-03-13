@@ -251,6 +251,15 @@ data/
 docs/                        # Architecture documentation
 ```
 
+## Roadmap to v1
+
+Open Alice is in pre-release. The following items must land before the first stable version:
+
+- [ ] **Tool confirmation** — sensitive tools (order placement, cancellation, position close) require explicit user confirmation before execution, with a per-tool bypass mechanism for trusted workflows
+- [ ] **Trading-as-Git stable interface** — finalize the stage → commit → push API surface (including `tradingStatus`, `tradingLog`, `tradingShow`, `tradingSync`) as a stable, versioned contract
+- [ ] **IBKR adapter** — Interactive Brokers integration via the Client Portal or TWS API, adding a third trading backend alongside CCXT and Alpaca
+- [ ] **Account snapshot & analytics** — unified trading account snapshots with P&L breakdown, exposure analysis, and historical performance tracking
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=TraderAlice/OpenAlice&type=Date)](https://star-history.com/#TraderAlice/OpenAlice&Date)
