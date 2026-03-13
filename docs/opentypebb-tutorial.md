@@ -74,24 +74,24 @@ Key settings:
 
 OpenTypeBB ships with 14 providers:
 
-| Provider | Covers | API Key Required? |
-|----------|--------|:-:|
+| Provider | Covers | API Key? |
+|----------|--------|----------|
 | **yfinance** | Equity, crypto, currency, news | No |
-| **fmp** | Equity fundamentals, news, discovery | Yes |
-| **intrinio** | Options data | Yes |
+| **fmp** | Equity fundamentals, news, discovery | Required |
+| **intrinio** | Options data | Required |
+| **eia** | Energy (petroleum, natural gas, electricity) | Required |
+| **econdb** | Global economic data | Optional (higher rate limits) |
+| **federal_reserve** | FRED, FOMC, payrolls, PCE, Michigan, etc. | Optional (higher rate limits) |
+| **bls** | Bureau of Labor Statistics employment data | Optional (higher rate limits) |
 | **deribit** | Crypto derivatives | No |
 | **cboe** | Index data | No |
 | **multpl** | S&P 500 multiples (PE, earnings yield) | No |
 | **oecd** | GDP, economic indicators | No |
-| **econdb** | Global economic data | No (optional key) |
 | **imf** | International trade, CPI, balance of payments | No |
 | **ecb** | European balance of payments | No |
-| **federal_reserve** | FRED, FOMC, payrolls, PCE, Michigan, etc. | No |
-| **bls** | Bureau of Labor Statistics employment data | No (optional key) |
-| **eia** | Energy (petroleum, natural gas, electricity) | Yes |
 | **stub** | Test/placeholder | No |
 
-**Most things work without any API key** — `yfinance` covers equity quotes, crypto prices, forex rates, and company news right out of the box.
+**Most things work without any API key** — `yfinance` covers equity quotes, crypto prices, forex rates, and company news. `federal_reserve`, `bls`, and `econdb` also work keyless but with stricter rate limits. Only `fmp`, `intrinio`, and `eia` strictly require a key.
 
 ## 5. Adding API Keys (Optional)
 
