@@ -74,8 +74,11 @@ describe('toModelMessages', () => {
         { type: 'text', text: 'thinking...' },
         { type: 'tool_use', id: 't1', name: 'Read', input: { path: '/tmp' } },
       ]),
+      userBlocks([
+        { type: 'tool_result', tool_use_id: 't1', content: 'file contents' },
+      ]),
     ])
-    expect(msgs).toHaveLength(1)
+    expect(msgs).toHaveLength(2)
     expect(msgs[0].role).toBe('assistant')
     const content = (msgs[0] as { content: unknown[] }).content
     expect(content).toHaveLength(2)
@@ -143,6 +146,42 @@ describe('toModelMessages', () => {
     expect(msgs[1].role).toBe('assistant')
     expect(msgs[2].role).toBe('tool')
     expect(msgs[3].role).toBe('assistant')
+  })
+
+  it('should strip orphaned tool-call entries that have no matching tool-result', () => {
+    const msgs = toModelMessages([
+      userText('do two things'),
+      // Assistant calls two tools, but only one result exists
+      assistantBlocks([
+        { type: 'tool_use', id: 't1', name: 'ToolA', input: {} },
+        { type: 'tool_use', id: 't2', name: 'ToolB', input: {} },
+      ]),
+      // Only t1 has a result — t2 is orphaned (e.g. session interrupted)
+      userBlocks([
+        { type: 'tool_result', tool_use_id: 't1', content: 'result A' },
+      ]),
+      assistantText('done'),
+    ])
+    // Assistant message should only contain the tool-call for t1
+    expect(msgs).toHaveLength(4)
+    const assistantContent = (msgs[1] as { content: unknown[] }).content
+    expect(assistantContent).toHaveLength(1)
+    expect((assistantContent[0] as { toolCallId: string }).toolCallId).toBe('t1')
+  })
+
+  it('should drop assistant message entirely if all tool-calls are orphaned', () => {
+    const msgs = toModelMessages([
+      userText('hi'),
+      // Assistant only has tool_use, no results exist at all
+      assistantBlocks([
+        { type: 'tool_use', id: 'orphan1', name: 'Missing', input: {} },
+      ]),
+      assistantText('recovered'),
+    ])
+    // The orphaned assistant message should be dropped
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0]).toEqual({ role: 'user', content: 'hi' })
+    expect(msgs[1]).toEqual({ role: 'assistant', content: 'recovered' })
   })
 })
 
