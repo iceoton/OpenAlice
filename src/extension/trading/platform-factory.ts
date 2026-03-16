@@ -1,9 +1,9 @@
 /**
- * Platform Factory — creates IPlatform and ITradingAccount from config.
+ * Platform Factory — creates IPlatform and IBroker from config.
  */
 
 import type { IPlatform, PlatformCredentials } from './platform.js'
-import type { ITradingAccount } from './interfaces.js'
+import type { IBroker } from './interfaces.js'
 import { CcxtPlatform } from './providers/ccxt/CcxtPlatform.js'
 import { AlpacaPlatform } from './providers/alpaca/AlpacaPlatform.js'
 import type { PlatformConfig, AccountConfig } from '../../core/config.js'
@@ -30,11 +30,11 @@ export function createPlatformFromConfig(config: PlatformConfig): IPlatform {
   }
 }
 
-/** Create an ITradingAccount from a platform + account config. */
+/** Create an IBroker from a platform + account config. */
 export function createAccountFromConfig(
   platform: IPlatform,
   accountConfig: AccountConfig,
-): ITradingAccount {
+): IBroker {
   const credentials: PlatformCredentials = {
     id: accountConfig.id,
     label: accountConfig.label,

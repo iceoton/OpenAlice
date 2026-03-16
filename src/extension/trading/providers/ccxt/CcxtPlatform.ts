@@ -1,5 +1,5 @@
 import type { IPlatform, PlatformCredentials } from '../../platform.js'
-import { CcxtAccount } from './CcxtAccount.js'
+import { CcxtBroker } from './CcxtBroker.js'
 
 export interface CcxtPlatformConfig {
   id: string
@@ -26,8 +26,8 @@ export class CcxtPlatform implements IPlatform {
     this.label = config.label ?? `${exchangeLabel} ${config.defaultMarketType} (${config.sandbox ? 'testnet' : 'live'})`
   }
 
-  createAccount(credentials: PlatformCredentials): CcxtAccount {
-    return new CcxtAccount({
+  createAccount(credentials: PlatformCredentials): CcxtBroker {
+    return new CcxtBroker({
       id: credentials.id,
       label: credentials.label,
       exchange: this.config.exchange,

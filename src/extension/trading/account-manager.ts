@@ -1,18 +1,18 @@
 /**
  * AccountManager — multi-account registry and aggregation
  *
- * Holds all ITradingAccount instances, provides cross-account operations
+ * Holds all IBroker instances, provides cross-account operations
  * like aggregated equity and global contract search.
  */
 
 import type { Contract, ContractDescription, ContractDetails } from '@traderalice/ibkr'
-import type { ITradingAccount, AccountCapabilities } from './interfaces.js'
+import type { IBroker, AccountCapabilities } from './interfaces.js'
 import './contract-ext.js'
 
 // ==================== Account entry ====================
 
 export interface AccountEntry {
-  account: ITradingAccount
+  account: IBroker
   platformId?: string
 }
 
@@ -54,7 +54,7 @@ export class AccountManager {
 
   // ---- Registration ----
 
-  addAccount(account: ITradingAccount, platformId?: string): void {
+  addAccount(account: IBroker, platformId?: string): void {
     if (this.entries.has(account.id)) {
       throw new Error(`Account "${account.id}" already registered`)
     }
@@ -67,7 +67,7 @@ export class AccountManager {
 
   // ---- Lookups ----
 
-  getAccount(id: string): ITradingAccount | undefined {
+  getAccount(id: string): IBroker | undefined {
     return this.entries.get(id)?.account
   }
 

@@ -14,7 +14,7 @@ import { z } from 'zod'
 import Decimal from 'decimal.js'
 import { Contract, Order } from '@traderalice/ibkr'
 import type { AccountManager } from './account-manager.js'
-import type { ITradingAccount } from './interfaces.js'
+import type { IBroker } from './interfaces.js'
 import type { ITradingGit } from './git/interfaces.js'
 import type { GitState, OrderStatusUpdate } from './git/types.js'
 import './contract-ext.js'
@@ -51,7 +51,7 @@ export interface AccountResolver {
 // ==================== Exported helpers (used by provider tools) ====================
 
 export interface ResolvedAccount {
-  account: ITradingAccount
+  account: IBroker
   id: string
 }
 

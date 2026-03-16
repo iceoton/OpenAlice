@@ -2,16 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import Decimal from 'decimal.js'
 import { Contract, Order } from '@traderalice/ibkr'
 import { wireAccountTrading, createAlpacaFromConfig, createCcxtFromConfig } from './factory.js'
-import { MockTradingAccount, makeContract, makePlaceOrderResult } from './__test__/mock-account.js'
+import { MockBroker, makeContract, makePlaceOrderResult } from './__test__/mock-broker.js'
 import type { Operation } from './git/types.js'
 import './contract-ext.js'
 
 vi.mock('./providers/alpaca/index.js', () => ({
-  AlpacaAccount: vi.fn(function (this: any, cfg: unknown) { this._config = cfg; this.id = 'alpaca-mock'; this.provider = 'alpaca' }),
+  AlpacaBroker: vi.fn(function (this: any, cfg: unknown) { this._config = cfg; this.id = 'alpaca-mock'; this.provider = 'alpaca' }),
 }))
 
 vi.mock('./providers/ccxt/index.js', () => ({
-  CcxtAccount: vi.fn(function (this: any, cfg: unknown) { this._config = cfg; this.id = 'ccxt-mock'; this.provider = 'ccxt' }),
+  CcxtBroker: vi.fn(function (this: any, cfg: unknown) { this._config = cfg; this.id = 'ccxt-mock'; this.provider = 'ccxt' }),
 }))
 
 function makeBuyOp(symbol = 'AAPL'): Operation {
@@ -24,10 +24,10 @@ function makeBuyOp(symbol = 'AAPL'): Operation {
 }
 
 describe('wireAccountTrading', () => {
-  let account: MockTradingAccount
+  let account: MockBroker
 
   beforeEach(() => {
-    account = new MockTradingAccount()
+    account = new MockBroker()
   })
 
   it('returns AccountSetup with account, git, and getGitState', () => {
@@ -116,7 +116,7 @@ describe('createAlpacaFromConfig', () => {
     expect(result).toBeNull()
   })
 
-  it('returns AlpacaAccount instance when provider.type is alpaca', () => {
+  it('returns AlpacaBroker instance when provider.type is alpaca', () => {
     const result = createAlpacaFromConfig({
       provider: { type: 'alpaca', apiKey: 'key123', secretKey: 'secret456', paper: true },
     } as any)
@@ -141,7 +141,7 @@ describe('createCcxtFromConfig', () => {
     expect(result).toBeNull()
   })
 
-  it('returns CcxtAccount instance with exchange config', () => {
+  it('returns CcxtBroker instance with exchange config', () => {
     const result = createCcxtFromConfig({
       provider: {
         type: 'bybit',

@@ -13,7 +13,7 @@ export type {
   OrderBook,
   MarketClock,
   AccountCapabilities,
-  ITradingAccount,
+  IBroker,
 } from './interfaces.js'
 
 // AccountManager
@@ -92,8 +92,8 @@ export { createTradingTools, resolveAccounts, resolveOne } from './adapter.js'
 export type { AccountResolver, ResolvedAccount } from './adapter.js'
 
 // Providers
-export { AlpacaAccount } from './providers/alpaca/index.js'
-export type { AlpacaAccountConfig } from './providers/alpaca/index.js'
-export { CcxtAccount } from './providers/ccxt/index.js'
+export { AlpacaBroker } from './providers/alpaca/index.js'
+export type { AlpacaBrokerConfig } from './providers/alpaca/index.js'
+export { CcxtBroker } from './providers/ccxt/index.js'
 export { createCcxtProviderTools } from './providers/ccxt/index.js'
-export type { CcxtAccountConfig } from './providers/ccxt/index.js'
+export type { CcxtBrokerConfig } from './providers/ccxt/index.js'

@@ -7,12 +7,12 @@
  */
 
 import type { Operation } from '../git/types.js'
-import type { ITradingAccount } from '../interfaces.js'
+import type { IBroker } from '../interfaces.js'
 import type { OperationGuard, GuardContext } from './types.js'
 
 export function createGuardPipeline(
   dispatcher: (op: Operation) => Promise<unknown>,
-  account: ITradingAccount,
+  account: IBroker,
   guards: OperationGuard[],
 ): (op: Operation) => Promise<unknown> {
   if (guards.length === 0) return dispatcher

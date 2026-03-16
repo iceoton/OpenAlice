@@ -1,7 +1,7 @@
 /**
  * Unified Trading interfaces — IBKR types as source of truth
  *
- * All providers (Alpaca, CCXT, IBKR, ...) implement ITradingAccount.
+ * All providers (Alpaca, CCXT, IBKR, ...) implement IBroker.
  * Order/Contract/Execution/OrderState come directly from @traderalice/ibkr.
  * Only types that IBKR doesn't define (Position, AccountInfo, Quote, etc.)
  * are defined here, with field names aligned to IBKR conventions.
@@ -110,9 +110,9 @@ export interface AccountCapabilities {
   supportedOrderTypes: string[]
 }
 
-// ==================== ITradingAccount ====================
+// ==================== IBroker ====================
 
-export interface ITradingAccount {
+export interface IBroker {
   /** Unique account ID, e.g. "alpaca-paper", "bybit-main". */
   readonly id: string
 

@@ -1,4 +1,4 @@
-export interface CcxtAccountConfig {
+export interface CcxtBrokerConfig {
   id?: string
   label?: string
   exchange: string

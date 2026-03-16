@@ -1,5 +1,5 @@
 /**
- * Mock ITradingAccount for testing.
+ * Mock IBroker for testing.
  *
  * All methods are vi.fn() so callers can override return values or inspect calls.
  */
@@ -8,7 +8,7 @@ import { vi } from 'vitest'
 import Decimal from 'decimal.js'
 import { Contract, ContractDescription, ContractDetails, Order, OrderState } from '@traderalice/ibkr'
 import type {
-  ITradingAccount,
+  IBroker,
   AccountCapabilities,
   AccountInfo,
   Position,
@@ -83,9 +83,9 @@ export function makePlaceOrderResult(overrides: Partial<PlaceOrderResult> = {}):
   }
 }
 
-// ==================== MockTradingAccount ====================
+// ==================== MockBroker ====================
 
-export interface MockTradingAccountOptions {
+export interface MockBrokerOptions {
   id?: string
   provider?: string
   label?: string
@@ -95,7 +95,7 @@ export interface MockTradingAccountOptions {
   accountInfo?: Partial<AccountInfo>
 }
 
-export class MockTradingAccount implements ITradingAccount {
+export class MockBroker implements IBroker {
   readonly id: string
   readonly provider: string
   readonly label: string
@@ -152,7 +152,7 @@ export class MockTradingAccount implements ITradingAccount {
       nextClose: new Date('2025-01-01T21:00:00Z'),
     })
 
-  constructor(options: MockTradingAccountOptions = {}) {
+  constructor(options: MockBrokerOptions = {}) {
     this.id = options.id ?? 'mock-paper'
     this.provider = options.provider ?? 'mock'
     this.label = options.label ?? 'Mock Paper Account'

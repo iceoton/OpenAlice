@@ -2,14 +2,14 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { Contract, Order, OrderState } from '@traderalice/ibkr'
 import Decimal from 'decimal.js'
 import { createWalletStateBridge } from './wallet-state-bridge.js'
-import { MockTradingAccount, makePosition, makeOpenOrder } from './__test__/mock-account.js'
+import { MockBroker, makePosition, makeOpenOrder } from './__test__/mock-broker.js'
 import './contract-ext.js'
 
 describe('createWalletStateBridge', () => {
-  let account: MockTradingAccount
+  let account: MockBroker
 
   beforeEach(() => {
-    account = new MockTradingAccount()
+    account = new MockBroker()
   })
 
   it('returns a function', () => {

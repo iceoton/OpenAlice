@@ -10,7 +10,7 @@ import { McpAskPlugin } from './connectors/mcp-ask/index.js'
 import { createThinkingTools } from './extension/thinking-kit/index.js'
 import {
   AccountManager,
-  CcxtAccount,
+  CcxtBroker,
   createCcxtProviderTools,
   wireAccountTrading,
   createTradingTools,
@@ -546,7 +546,7 @@ async function main() {
   ccxtInitPromise.then(() => {
     // Check if any CCXT accounts were successfully registered
     const hasCcxt = Array.from(accountSetups.values()).some(
-      (s) => s.account instanceof CcxtAccount,
+      (s) => s.account instanceof CcxtBroker,
     )
     if (!hasCcxt) return
 

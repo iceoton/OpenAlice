@@ -1,5 +1,5 @@
 import type { IPlatform, PlatformCredentials } from '../../platform.js'
-import { AlpacaAccount } from './AlpacaAccount.js'
+import { AlpacaBroker } from './AlpacaBroker.js'
 
 export interface AlpacaPlatformConfig {
   id: string
@@ -20,8 +20,8 @@ export class AlpacaPlatform implements IPlatform {
     this.label = config.label ?? (config.paper ? 'Alpaca Paper' : 'Alpaca Live')
   }
 
-  createAccount(credentials: PlatformCredentials): AlpacaAccount {
-    return new AlpacaAccount({
+  createAccount(credentials: PlatformCredentials): AlpacaBroker {
+    return new AlpacaBroker({
       id: credentials.id,
       label: credentials.label,
       apiKey: credentials.apiKey ?? '',

@@ -1,5 +1,5 @@
 /**
- * AlpacaAccount — ITradingAccount adapter for Alpaca
+ * AlpacaBroker — IBroker adapter for Alpaca
  *
  * Direct implementation against @alpacahq/alpaca-trade-api SDK.
  * Supports US equities (STK). Contract resolution uses Alpaca's ticker
@@ -12,7 +12,7 @@ import Alpaca from '@alpacahq/alpaca-trade-api'
 import Decimal from 'decimal.js'
 import { Contract, ContractDescription, ContractDetails, Order, OrderState, UNSET_DOUBLE, UNSET_DECIMAL } from '@traderalice/ibkr'
 import type {
-  ITradingAccount,
+  IBroker,
   AccountCapabilities,
   AccountInfo,
   Position,
@@ -23,8 +23,8 @@ import type {
 } from '../../interfaces.js'
 import '../../contract-ext.js'
 import type {
-  AlpacaAccountConfig,
-  AlpacaAccountRaw,
+  AlpacaBrokerConfig,
+  AlpacaBrokerRaw,
   AlpacaPositionRaw,
   AlpacaOrderRaw,
   AlpacaSnapshotRaw,
@@ -58,19 +58,19 @@ function ibkrTifToAlpaca(tif: string): string {
   }
 }
 
-export class AlpacaAccount implements ITradingAccount {
+export class AlpacaBroker implements IBroker {
   readonly id: string
   readonly provider = 'alpaca'
   readonly label: string
 
   private client!: InstanceType<typeof Alpaca>
-  private readonly config: AlpacaAccountConfig
+  private readonly config: AlpacaBrokerConfig
 
   /** Cached realized PnL from FILL activities (FIFO lot matching) */
   private realizedPnLCache: { value: number; updatedAt: number } | null = null
   private static readonly REALIZED_PNL_TTL_MS = 60_000
 
-  constructor(config: AlpacaAccountConfig) {
+  constructor(config: AlpacaBrokerConfig) {
     this.config = config
     this.id = config.id ?? (config.paper ? 'alpaca-paper' : 'alpaca-live')
     this.label = config.label ?? (config.paper ? 'Alpaca Paper' : 'Alpaca Live')
@@ -96,25 +96,25 @@ export class AlpacaAccount implements ITradingAccount {
     })
 
     let lastErr: unknown
-    for (let attempt = 1; attempt <= AlpacaAccount.MAX_INIT_RETRIES; attempt++) {
+    for (let attempt = 1; attempt <= AlpacaBroker.MAX_INIT_RETRIES; attempt++) {
       try {
-        const account = await this.client.getAccount() as AlpacaAccountRaw
+        const account = await this.client.getAccount() as AlpacaBrokerRaw
         console.log(
-          `AlpacaAccount[${this.id}]: connected (paper=${this.config.paper}, equity=$${parseFloat(account.equity).toFixed(2)})`,
+          `AlpacaBroker[${this.id}]: connected (paper=${this.config.paper}, equity=$${parseFloat(account.equity).toFixed(2)})`,
         )
         return
       } catch (err) {
         lastErr = err
         const isAuthError = err instanceof Error &&
           /40[13]|forbidden|unauthorized/i.test(err.message)
-        if (isAuthError && attempt >= AlpacaAccount.MAX_AUTH_RETRIES) {
+        if (isAuthError && attempt >= AlpacaBroker.MAX_AUTH_RETRIES) {
           throw new Error(
             `Authentication failed — verify your Alpaca API key and secret are correct.`,
           )
         }
-        if (attempt < AlpacaAccount.MAX_INIT_RETRIES) {
-          const delay = AlpacaAccount.INIT_RETRY_BASE_MS * 2 ** (attempt - 1)
-          console.warn(`AlpacaAccount[${this.id}]: init attempt ${attempt}/${AlpacaAccount.MAX_INIT_RETRIES} failed, retrying in ${delay}ms...`)
+        if (attempt < AlpacaBroker.MAX_INIT_RETRIES) {
+          const delay = AlpacaBroker.INIT_RETRY_BASE_MS * 2 ** (attempt - 1)
+          console.warn(`AlpacaBroker[${this.id}]: init attempt ${attempt}/${AlpacaBroker.MAX_INIT_RETRIES} failed, retrying in ${delay}ms...`)
           await new Promise(r => setTimeout(r, delay))
         }
       }
@@ -290,7 +290,7 @@ export class AlpacaAccount implements ITradingAccount {
 
   async getAccount(): Promise<AccountInfo> {
     const [account, positions, realizedPnL] = await Promise.all([
-      this.client.getAccount() as Promise<AlpacaAccountRaw>,
+      this.client.getAccount() as Promise<AlpacaBrokerRaw>,
       this.client.getPositions() as Promise<AlpacaPositionRaw[]>,
       this.getRealizedPnL(),
     ])
@@ -382,7 +382,7 @@ export class AlpacaAccount implements ITradingAccount {
    */
   private async getRealizedPnL(): Promise<number> {
     const now = Date.now()
-    if (this.realizedPnLCache && (now - this.realizedPnLCache.updatedAt) < AlpacaAccount.REALIZED_PNL_TTL_MS) {
+    if (this.realizedPnLCache && (now - this.realizedPnLCache.updatedAt) < AlpacaBroker.REALIZED_PNL_TTL_MS) {
       return this.realizedPnLCache.value
     }
 
@@ -393,7 +393,7 @@ export class AlpacaAccount implements ITradingAccount {
       return value
     } catch (err) {
       // On error, return cached value if available, otherwise 0
-      console.warn(`AlpacaAccount[${this.id}]: failed to fetch FILL activities:`, err)
+      console.warn(`AlpacaBroker[${this.id}]: failed to fetch FILL activities:`, err)
       return this.realizedPnLCache?.value ?? 0
     }
   }

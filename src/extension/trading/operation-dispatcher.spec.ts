@@ -2,16 +2,16 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import Decimal from 'decimal.js'
 import { Contract, Order, OrderState, UNSET_DOUBLE, UNSET_DECIMAL } from '@traderalice/ibkr'
 import { createOperationDispatcher } from './operation-dispatcher.js'
-import { MockTradingAccount, makeContract, makePlaceOrderResult } from './__test__/mock-account.js'
+import { MockBroker, makeContract, makePlaceOrderResult } from './__test__/mock-broker.js'
 import type { Operation } from './git/types.js'
 import './contract-ext.js'
 
 describe('createOperationDispatcher', () => {
-  let account: MockTradingAccount
+  let account: MockBroker
   let dispatch: (op: Operation) => Promise<unknown>
 
   beforeEach(() => {
-    account = new MockTradingAccount()
+    account = new MockBroker()
     dispatch = createOperationDispatcher(account)
   })
 

@@ -8,15 +8,15 @@ import { tool } from 'ai'
 import { z } from 'zod'
 import { resolveAccounts } from '../../adapter.js'
 import type { AccountResolver } from '../../adapter.js'
-import { CcxtAccount } from './CcxtAccount.js'
+import { CcxtBroker } from './CcxtBroker.js'
 
 export function createCcxtProviderTools(resolver: AccountResolver) {
   const { accountManager } = resolver
 
-  /** Resolve to exactly one CcxtAccount. Returns error object if unable. */
-  const resolveCcxtOne = (source?: string): { account: CcxtAccount; id: string } | { error: string } => {
+  /** Resolve to exactly one CcxtBroker. Returns error object if unable. */
+  const resolveCcxtOne = (source?: string): { account: CcxtBroker; id: string } | { error: string } => {
     const targets = resolveAccounts(accountManager, source)
-      .filter((t): t is { account: CcxtAccount; id: string } => t.account instanceof CcxtAccount)
+      .filter((t): t is { account: CcxtBroker; id: string } => t.account instanceof CcxtBroker)
     if (targets.length === 0) return { error: 'No CCXT account available.' }
     if (targets.length > 1) {
       return { error: `Multiple CCXT accounts: ${targets.map(t => t.id).join(', ')}. Specify source.` }

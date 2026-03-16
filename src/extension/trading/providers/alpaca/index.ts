@@ -1,3 +1,3 @@
-export { AlpacaAccount } from './AlpacaAccount.js'
+export { AlpacaBroker } from './AlpacaBroker.js'
 export { computeRealizedPnL } from './alpaca-pnl.js'
-export type { AlpacaAccountConfig } from './alpaca-types.js'
+export type { AlpacaBrokerConfig } from './alpaca-types.js'

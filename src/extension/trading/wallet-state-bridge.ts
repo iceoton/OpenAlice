@@ -1,14 +1,14 @@
 /**
  * Unified Wallet State Bridge
  *
- * ITradingAccount → GitState assembly.
+ * IBroker → GitState assembly.
  * Used as the TradingGitConfig.getGitState callback.
  */
 
-import type { ITradingAccount } from './interfaces.js'
+import type { IBroker } from './interfaces.js'
 import type { GitState } from './git/types.js'
 
-export function createWalletStateBridge(account: ITradingAccount) {
+export function createWalletStateBridge(account: IBroker) {
   return async (): Promise<GitState> => {
     const [accountInfo, positions, orders] = await Promise.all([
       account.getAccount(),

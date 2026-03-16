@@ -6,7 +6,7 @@
  * The platform acts as a typed factory for accounts.
  */
 
-import type { ITradingAccount } from './interfaces.js'
+import type { IBroker } from './interfaces.js'
 import './contract-ext.js'
 
 /** Credentials passed to IPlatform.createAccount(). */
@@ -26,12 +26,12 @@ export interface IPlatform {
   readonly label: string
 
   /**
-   * Provider class tag. Matches ITradingAccount.provider on created accounts.
+   * Provider class tag. Matches IBroker.provider on created accounts.
    * CcxtPlatform → exchange name (e.g. "bybit").
    * AlpacaPlatform → "alpaca".
    */
   readonly providerType: string
 
-  /** Create a new ITradingAccount instance from per-account credentials. */
-  createAccount(credentials: PlatformCredentials): ITradingAccount
+  /** Create a new IBroker instance from per-account credentials. */
+  createAccount(credentials: PlatformCredentials): IBroker
 }

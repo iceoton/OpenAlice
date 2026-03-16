@@ -1,5 +1,5 @@
 /**
- * CcxtAccount — ITradingAccount adapter for CCXT exchanges
+ * CcxtBroker — IBroker adapter for CCXT exchanges
  *
  * Direct implementation against ccxt unified API.
  * Takes IBKR Order objects, reads relevant fields, ignores the rest.
@@ -11,7 +11,7 @@ import Decimal from 'decimal.js'
 import type { Exchange, Order as CcxtOrder } from 'ccxt'
 import { Contract, ContractDescription, ContractDetails, Order, OrderState, UNSET_DOUBLE, UNSET_DECIMAL } from '@traderalice/ibkr'
 import type {
-  ITradingAccount,
+  IBroker,
   AccountCapabilities,
   AccountInfo,
   Position,
@@ -24,7 +24,7 @@ import type {
   OrderBookLevel,
 } from '../../interfaces.js'
 import '../../contract-ext.js'
-import type { CcxtAccountConfig, CcxtMarket } from './ccxt-types.js'
+import type { CcxtBrokerConfig, CcxtMarket } from './ccxt-types.js'
 import { MAX_INIT_RETRIES, INIT_RETRY_BASE_MS } from './ccxt-types.js'
 import {
   ccxtTypeToSecType,
@@ -43,7 +43,7 @@ function ibkrOrderTypeToCcxt(orderType: string): string {
   }
 }
 
-export class CcxtAccount implements ITradingAccount {
+export class CcxtBroker implements IBroker {
   readonly id: string
   readonly provider: string  // "ccxt" or the specific exchange name
   readonly label: string
@@ -57,7 +57,7 @@ export class CcxtAccount implements ITradingAccount {
   // orderId → ccxtSymbol cache (CCXT needs symbol to cancel)
   private orderSymbolCache = new Map<string, string>()
 
-  constructor(config: CcxtAccountConfig) {
+  constructor(config: CcxtBrokerConfig) {
     this.exchangeName = config.exchange
     this.provider = config.exchange  // use exchange name as provider (e.g. "bybit", "binance")
     this.id = config.id ?? `${config.exchange}-main`
@@ -101,14 +101,14 @@ export class CcxtAccount implements ITradingAccount {
 
   private ensureInit(): void {
     if (!this.initialized) {
-      throw new Error(`CcxtAccount[${this.id}] not initialized. Call init() first.`)
+      throw new Error(`CcxtBroker[${this.id}] not initialized. Call init() first.`)
     }
   }
 
   private ensureWritable(): void {
     if (this.readOnly) {
       throw new Error(
-        `CcxtAccount[${this.id}] is in read-only mode (no API keys). This operation requires authentication.`,
+        `CcxtBroker[${this.id}] is in read-only mode (no API keys). This operation requires authentication.`,
       )
     }
   }
@@ -118,7 +118,7 @@ export class CcxtAccount implements ITradingAccount {
   async init(): Promise<void> {
     if (this.readOnly) {
       console.log(
-        `CcxtAccount[${this.id}]: no API credentials — running in market-data-only mode. ` +
+        `CcxtBroker[${this.id}]: no API credentials — running in market-data-only mode. ` +
         `Set apiKey and apiSecret in accounts.json for trading.`,
       )
     }
@@ -146,10 +146,10 @@ export class CcxtAccount implements ITradingAccount {
             const msg = err instanceof Error ? err.message : String(err)
             if (attempt < MAX_INIT_RETRIES) {
               const delay = INIT_RETRY_BASE_MS * Math.pow(2, attempt - 1)
-              console.warn(`CcxtAccount[${accountId}]: fetchMarkets(${type}) attempt ${attempt}/${MAX_INIT_RETRIES} failed, retrying in ${delay}ms...`)
+              console.warn(`CcxtBroker[${accountId}]: fetchMarkets(${type}) attempt ${attempt}/${MAX_INIT_RETRIES} failed, retrying in ${delay}ms...`)
               await new Promise(r => setTimeout(r, delay))
             } else {
-              console.warn(`CcxtAccount[${accountId}]: fetchMarkets(${type}) failed after ${MAX_INIT_RETRIES} attempts: ${msg} — skipping`)
+              console.warn(`CcxtBroker[${accountId}]: fetchMarkets(${type}) failed after ${MAX_INIT_RETRIES} attempts: ${msg} — skipping`)
             }
           }
         }
@@ -168,11 +168,11 @@ export class CcxtAccount implements ITradingAccount {
 
     const marketCount = Object.keys(this.exchange.markets).length
     if (marketCount === 0) {
-      throw new Error(`CcxtAccount[${this.id}]: failed to load any markets`)
+      throw new Error(`CcxtBroker[${this.id}]: failed to load any markets`)
     }
     this.initialized = true
     const mode = this.readOnly ? ', read-only (no API keys)' : ''
-    console.log(`CcxtAccount[${this.id}]: connected (${this.exchangeName}, ${marketCount} markets loaded${mode})`)
+    console.log(`CcxtBroker[${this.id}]: connected (${this.exchangeName}, ${marketCount} markets loaded${mode})`)
   }
 
   async close(): Promise<void> {

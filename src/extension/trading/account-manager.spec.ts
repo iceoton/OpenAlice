@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { Contract, ContractDescription, ContractDetails } from '@traderalice/ibkr'
 import { AccountManager } from './account-manager.js'
 import {
-  MockTradingAccount,
+  MockBroker,
   makeContract,
-} from './__test__/mock-account.js'
+} from './__test__/mock-broker.js'
 import './contract-ext.js'
 
 describe('AccountManager', () => {
@@ -18,7 +18,7 @@ describe('AccountManager', () => {
 
   describe('addAccount / removeAccount', () => {
     it('adds and retrieves an account', () => {
-      const acct = new MockTradingAccount({ id: 'a1' })
+      const acct = new MockBroker({ id: 'a1' })
       manager.addAccount(acct)
 
       expect(manager.getAccount('a1')).toBe(acct)
@@ -27,14 +27,14 @@ describe('AccountManager', () => {
     })
 
     it('throws on duplicate id', () => {
-      manager.addAccount(new MockTradingAccount({ id: 'a1' }))
+      manager.addAccount(new MockBroker({ id: 'a1' }))
       expect(() =>
-        manager.addAccount(new MockTradingAccount({ id: 'a1' })),
+        manager.addAccount(new MockBroker({ id: 'a1' })),
       ).toThrow('already registered')
     })
 
     it('removes an account', () => {
-      manager.addAccount(new MockTradingAccount({ id: 'a1' }))
+      manager.addAccount(new MockBroker({ id: 'a1' }))
       manager.removeAccount('a1')
       expect(manager.has('a1')).toBe(false)
       expect(manager.size).toBe(0)
@@ -49,8 +49,8 @@ describe('AccountManager', () => {
 
   describe('listAccounts', () => {
     it('returns summaries of all accounts', () => {
-      manager.addAccount(new MockTradingAccount({ id: 'a1', provider: 'alpaca', label: 'Paper' }))
-      manager.addAccount(new MockTradingAccount({ id: 'a2', provider: 'ccxt', label: 'Bybit' }))
+      manager.addAccount(new MockBroker({ id: 'a1', provider: 'alpaca', label: 'Paper' }))
+      manager.addAccount(new MockBroker({ id: 'a2', provider: 'ccxt', label: 'Bybit' }))
 
       const list = manager.listAccounts()
       expect(list).toHaveLength(2)
@@ -60,8 +60,8 @@ describe('AccountManager', () => {
     })
 
     it('includes platformId when provided', () => {
-      manager.addAccount(new MockTradingAccount({ id: 'a1', provider: 'alpaca' }), 'alpaca-paper')
-      manager.addAccount(new MockTradingAccount({ id: 'a2', provider: 'ccxt' }))
+      manager.addAccount(new MockBroker({ id: 'a1', provider: 'alpaca' }), 'alpaca-paper')
+      manager.addAccount(new MockBroker({ id: 'a2', provider: 'ccxt' }))
 
       const list = manager.listAccounts()
       expect(list[0].platformId).toBe('alpaca-paper')
@@ -73,8 +73,8 @@ describe('AccountManager', () => {
 
   describe('getAggregatedEquity', () => {
     it('aggregates equity across accounts', async () => {
-      const a1 = new MockTradingAccount({ id: 'a1', label: 'A', accountInfo: { netLiquidation: 50_000, totalCashValue: 30_000, unrealizedPnL: 2_000, realizedPnL: 500 } })
-      const a2 = new MockTradingAccount({ id: 'a2', label: 'B', accountInfo: { netLiquidation: 75_000, totalCashValue: 60_000, unrealizedPnL: 3_000, realizedPnL: 1_000 } })
+      const a1 = new MockBroker({ id: 'a1', label: 'A', accountInfo: { netLiquidation: 50_000, totalCashValue: 30_000, unrealizedPnL: 2_000, realizedPnL: 500 } })
+      const a2 = new MockBroker({ id: 'a2', label: 'B', accountInfo: { netLiquidation: 75_000, totalCashValue: 60_000, unrealizedPnL: 3_000, realizedPnL: 1_000 } })
       manager.addAccount(a1)
       manager.addAccount(a2)
 
@@ -97,12 +97,12 @@ describe('AccountManager', () => {
 
   describe('searchContracts', () => {
     it('searches all accounts by default', async () => {
-      const a1 = new MockTradingAccount({ id: 'a1' })
+      const a1 = new MockBroker({ id: 'a1' })
       const desc1 = new ContractDescription()
       desc1.contract = makeContract({ aliceId: 'a1-AAPL' })
       a1.searchContracts.mockResolvedValue([desc1])
 
-      const a2 = new MockTradingAccount({ id: 'a2' })
+      const a2 = new MockBroker({ id: 'a2' })
       const desc2 = new ContractDescription()
       desc2.contract = makeContract({ aliceId: 'a2-AAPL' })
       a2.searchContracts.mockResolvedValue([desc2])
@@ -115,12 +115,12 @@ describe('AccountManager', () => {
     })
 
     it('scopes search to specific accountId', async () => {
-      const a1 = new MockTradingAccount({ id: 'a1' })
+      const a1 = new MockBroker({ id: 'a1' })
       const desc1 = new ContractDescription()
       desc1.contract = makeContract({ aliceId: 'a1-AAPL' })
       a1.searchContracts.mockResolvedValue([desc1])
 
-      const a2 = new MockTradingAccount({ id: 'a2' })
+      const a2 = new MockBroker({ id: 'a2' })
       const desc2 = new ContractDescription()
       desc2.contract = makeContract({ aliceId: 'a2-AAPL' })
       a2.searchContracts.mockResolvedValue([desc2])
@@ -134,9 +134,9 @@ describe('AccountManager', () => {
     })
 
     it('excludes accounts with no matches', async () => {
-      const a1 = new MockTradingAccount({ id: 'a1' })
+      const a1 = new MockBroker({ id: 'a1' })
       a1.searchContracts.mockResolvedValue([])
-      const a2 = new MockTradingAccount({ id: 'a2' })
+      const a2 = new MockBroker({ id: 'a2' })
       const desc = new ContractDescription()
       desc.contract = makeContract()
       a2.searchContracts.mockResolvedValue([desc])
@@ -154,7 +154,7 @@ describe('AccountManager', () => {
 
   describe('getContractDetails', () => {
     it('returns details from specified account', async () => {
-      const a1 = new MockTradingAccount({ id: 'a1' })
+      const a1 = new MockBroker({ id: 'a1' })
       manager.addAccount(a1)
 
       const query = makeContract({ symbol: 'AAPL' })
@@ -175,8 +175,8 @@ describe('AccountManager', () => {
 
   describe('closeAll', () => {
     it('calls close on all accounts and clears entries', async () => {
-      const a1 = new MockTradingAccount({ id: 'a1' })
-      const a2 = new MockTradingAccount({ id: 'a2' })
+      const a1 = new MockBroker({ id: 'a1' })
+      const a2 = new MockBroker({ id: 'a2' })
       manager.addAccount(a1)
       manager.addAccount(a2)
 
@@ -188,7 +188,7 @@ describe('AccountManager', () => {
     })
 
     it('does not throw if one account fails to close', async () => {
-      const a1 = new MockTradingAccount({ id: 'a1' })
+      const a1 = new MockBroker({ id: 'a1' })
       a1.close.mockRejectedValue(new Error('close failed'))
       manager.addAccount(a1)
 

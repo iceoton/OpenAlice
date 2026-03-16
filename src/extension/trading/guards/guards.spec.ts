@@ -9,7 +9,7 @@ import { resolveGuards, registerGuard } from './registry.js'
 import type { GuardContext, OperationGuard } from './types.js'
 import type { Operation } from '../git/types.js'
 import type { AccountInfo, Position } from '../interfaces.js'
-import { MockTradingAccount, makeContract, makePosition } from '../__test__/mock-account.js'
+import { MockBroker, makeContract, makePosition } from '../__test__/mock-broker.js'
 import '../contract-ext.js'
 
 // ==================== Helpers ====================
@@ -194,7 +194,7 @@ describe('SymbolWhitelistGuard', () => {
 describe('createGuardPipeline', () => {
   it('returns dispatcher directly when no guards', () => {
     const dispatcher = vi.fn().mockResolvedValue({ success: true })
-    const account = new MockTradingAccount()
+    const account = new MockBroker()
     const pipeline = createGuardPipeline(dispatcher, account, [])
 
     // Should be the same function reference
@@ -203,7 +203,7 @@ describe('createGuardPipeline', () => {
 
   it('passes through when all guards allow', async () => {
     const dispatcher = vi.fn().mockResolvedValue({ success: true })
-    const account = new MockTradingAccount()
+    const account = new MockBroker()
     const allowGuard: OperationGuard = { name: 'allow-all', check: () => null }
 
     const pipeline = createGuardPipeline(dispatcher, account, [allowGuard])
@@ -216,7 +216,7 @@ describe('createGuardPipeline', () => {
 
   it('blocks when a guard rejects', async () => {
     const dispatcher = vi.fn().mockResolvedValue({ success: true })
-    const account = new MockTradingAccount()
+    const account = new MockBroker()
     const denyGuard: OperationGuard = { name: 'deny-all', check: () => 'Denied!' }
 
     const pipeline = createGuardPipeline(dispatcher, account, [denyGuard])
@@ -231,7 +231,7 @@ describe('createGuardPipeline', () => {
 
   it('stops at first rejecting guard', async () => {
     const dispatcher = vi.fn().mockResolvedValue({ success: true })
-    const account = new MockTradingAccount()
+    const account = new MockBroker()
     const guardA: OperationGuard = { name: 'A', check: vi.fn().mockReturnValue(null) }
     const guardB: OperationGuard = { name: 'B', check: vi.fn().mockReturnValue('Blocked by B') }
     const guardC: OperationGuard = { name: 'C', check: vi.fn().mockReturnValue(null) }
@@ -247,7 +247,7 @@ describe('createGuardPipeline', () => {
 
   it('fetches positions and account info for guard context', async () => {
     const dispatcher = vi.fn().mockResolvedValue({ success: true })
-    const account = new MockTradingAccount()
+    const account = new MockBroker()
     account.setPositions([makePosition()])
 
     let capturedCtx: GuardContext | undefined

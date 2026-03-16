@@ -2,7 +2,7 @@
  * Contract resolution helpers for CCXT exchanges.
  *
  * Pure functions parameterized by (markets, exchangeName) —
- * no dependency on the CcxtAccount instance.
+ * no dependency on the CcxtBroker instance.
  * Now returns IBKR Contract class instances with aliceId extension.
  */
 

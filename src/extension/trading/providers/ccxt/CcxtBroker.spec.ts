@@ -1,5 +1,5 @@
 /**
- * CcxtAccount unit tests.
+ * CcxtBroker unit tests.
  *
  * We mock the ccxt module so the constructor doesn't try to reach real exchanges.
  * Tests focus on pure logic: searchContracts sorting/filtering, cancelOrder cache,
@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import Decimal from 'decimal.js'
 import { Contract, Order, UNSET_DOUBLE, UNSET_DECIMAL } from '@traderalice/ibkr'
 
-// Mock ccxt BEFORE importing CcxtAccount
+// Mock ccxt BEFORE importing CcxtBroker
 vi.mock('ccxt', () => {
   // Create a fake exchange class that can be used as a constructor
   const MockExchange = vi.fn(function (this: any) {
@@ -39,7 +39,7 @@ vi.mock('ccxt', () => {
   }
 })
 
-import { CcxtAccount } from './CcxtAccount.js'
+import { CcxtBroker } from './CcxtBroker.js'
 import '../../contract-ext.js'
 
 // ==================== Helpers ====================
@@ -73,7 +73,7 @@ function makeSwapMarket(base: string, quote: string, symbol?: string): any {
 }
 
 function makeAccount(overrides?: Partial<{ apiKey: string; apiSecret: string }>) {
-  return new CcxtAccount({
+  return new CcxtBroker({
     exchange: 'bybit',
     apiKey: overrides?.apiKey ?? 'k',
     apiSecret: overrides?.apiSecret ?? 's',
@@ -81,22 +81,22 @@ function makeAccount(overrides?: Partial<{ apiKey: string; apiSecret: string }>)
   })
 }
 
-function setInitialized(acc: CcxtAccount, markets: Record<string, any>) {
+function setInitialized(acc: CcxtBroker, markets: Record<string, any>) {
   ;(acc as any).initialized = true
   ;(acc as any).exchange.markets = markets
 }
 
 // ==================== Constructor ====================
 
-describe('CcxtAccount — constructor', () => {
+describe('CcxtBroker — constructor', () => {
   it('throws for unknown exchange', () => {
-    expect(() => new CcxtAccount({ exchange: 'unknownxyz', apiKey: 'k', apiSecret: 's', defaultMarketType: 'spot' })).toThrow(
+    expect(() => new CcxtBroker({ exchange: 'unknownxyz', apiKey: 'k', apiSecret: 's', defaultMarketType: 'spot' })).toThrow(
       'Unknown CCXT exchange',
     )
   })
 
   it('sets readOnly when no apiKey', () => {
-    const acc = new CcxtAccount({ exchange: 'bybit', apiKey: '', apiSecret: '', defaultMarketType: 'spot' })
+    const acc = new CcxtBroker({ exchange: 'bybit', apiKey: '', apiSecret: '', defaultMarketType: 'spot' })
     expect((acc as any).readOnly).toBe(true)
   })
 
@@ -113,8 +113,8 @@ describe('CcxtAccount — constructor', () => {
 
 // ==================== searchContracts ====================
 
-describe('CcxtAccount — searchContracts', () => {
-  let acc: CcxtAccount
+describe('CcxtBroker — searchContracts', () => {
+  let acc: CcxtBroker
 
   beforeEach(() => {
     acc = makeAccount()
@@ -160,7 +160,7 @@ describe('CcxtAccount — searchContracts', () => {
 
 // ==================== cancelOrder — cache miss ====================
 
-describe('CcxtAccount — cancelOrder cache', () => {
+describe('CcxtBroker — cancelOrder cache', () => {
   it('calls exchange.cancelOrder with undefined symbol when orderId is not in cache', async () => {
     const acc = makeAccount()
     setInitialized(acc, {})
@@ -190,7 +190,7 @@ describe('CcxtAccount — cancelOrder cache', () => {
 
 // ==================== placeOrder — notional conversion ====================
 
-describe('CcxtAccount — placeOrder notional', () => {
+describe('CcxtBroker — placeOrder notional', () => {
   it('converts notional to size using ticker price when qty is not provided', async () => {
     const acc = makeAccount()
     setInitialized(acc, {

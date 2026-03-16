@@ -1,4 +1,4 @@
-export interface AlpacaAccountConfig {
+export interface AlpacaBrokerConfig {
   id?: string
   label?: string
   apiKey: string
@@ -8,7 +8,7 @@ export interface AlpacaAccountConfig {
 
 // ==================== Alpaca SDK raw shapes ====================
 
-export interface AlpacaAccountRaw {
+export interface AlpacaBrokerRaw {
   cash: string
   portfolio_value: string
   equity: string

@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { Contract, ContractDescription } from '@traderalice/ibkr'
 import { resolveAccounts, resolveOne, createTradingTools } from './adapter.js'
 import { AccountManager } from './account-manager.js'
-import { MockTradingAccount, makePosition, makeContract } from './__test__/mock-account.js'
+import { MockBroker, makePosition, makeContract } from './__test__/mock-broker.js'
 import './contract-ext.js'
 
 // ==================== Helpers ====================
 
-function makeManager(...accounts: MockTradingAccount[]): AccountManager {
+function makeManager(...accounts: MockBroker[]): AccountManager {
   const mgr = new AccountManager()
   for (const acc of accounts) mgr.addAccount(acc)
   return mgr
@@ -24,13 +24,13 @@ function makeResolver(mgr: AccountManager) {
 // ==================== resolveAccounts ====================
 
 describe('resolveAccounts', () => {
-  let alpaca: MockTradingAccount
-  let ccxt: MockTradingAccount
+  let alpaca: MockBroker
+  let ccxt: MockBroker
   let mgr: AccountManager
 
   beforeEach(() => {
-    alpaca = new MockTradingAccount({ id: 'alpaca-paper', provider: 'alpaca', label: 'Alpaca Paper' })
-    ccxt = new MockTradingAccount({ id: 'bybit-main', provider: 'ccxt', label: 'Bybit Main' })
+    alpaca = new MockBroker({ id: 'alpaca-paper', provider: 'alpaca', label: 'Alpaca Paper' })
+    ccxt = new MockBroker({ id: 'bybit-main', provider: 'ccxt', label: 'Bybit Main' })
     mgr = makeManager(alpaca, ccxt)
   })
 
@@ -48,7 +48,7 @@ describe('resolveAccounts', () => {
   })
 
   it('returns all accounts matching a provider name', () => {
-    const ccxt2 = new MockTradingAccount({ id: 'binance-main', provider: 'ccxt', label: 'Binance' })
+    const ccxt2 = new MockBroker({ id: 'binance-main', provider: 'ccxt', label: 'Binance' })
     mgr.addAccount(ccxt2)
     const results = resolveAccounts(mgr, 'ccxt')
     expect(results).toHaveLength(2)
@@ -62,7 +62,7 @@ describe('resolveAccounts', () => {
 
   it('prefers id match over provider match when source matches both', () => {
     // Account id equals another account's provider name (edge case)
-    const special = new MockTradingAccount({ id: 'alpaca', provider: 'mock', label: 'Special' })
+    const special = new MockBroker({ id: 'alpaca', provider: 'mock', label: 'Special' })
     mgr.addAccount(special)
     const results = resolveAccounts(mgr, 'alpaca')
     // id match returns immediately
@@ -78,8 +78,8 @@ describe('resolveOne', () => {
 
   beforeEach(() => {
     mgr = makeManager(
-      new MockTradingAccount({ id: 'alpaca-paper', provider: 'alpaca' }),
-      new MockTradingAccount({ id: 'bybit-main', provider: 'ccxt' }),
+      new MockBroker({ id: 'alpaca-paper', provider: 'alpaca' }),
+      new MockBroker({ id: 'bybit-main', provider: 'ccxt' }),
     )
   })
 
@@ -93,7 +93,7 @@ describe('resolveOne', () => {
   })
 
   it('throws with disambiguation info when multiple accounts match provider', () => {
-    mgr.addAccount(new MockTradingAccount({ id: 'alpaca-live', provider: 'alpaca' }))
+    mgr.addAccount(new MockBroker({ id: 'alpaca-live', provider: 'alpaca' }))
     expect(() => resolveOne(mgr, 'alpaca')).toThrow(/Multiple accounts match source "alpaca"/)
   })
 })
@@ -103,7 +103,7 @@ describe('resolveOne', () => {
 describe('createTradingTools — listAccounts', () => {
   it('returns summaries for all registered accounts', async () => {
     const mgr = makeManager(
-      new MockTradingAccount({ id: 'acc1', provider: 'alpaca', label: 'Test' }),
+      new MockBroker({ id: 'acc1', provider: 'alpaca', label: 'Test' }),
     )
     const tools = createTradingTools(makeResolver(mgr))
     const result = await (tools.listAccounts.execute as Function)({})
@@ -117,8 +117,8 @@ describe('createTradingTools — listAccounts', () => {
 
 describe('createTradingTools — searchContracts', () => {
   it('aggregates results from all accounts', async () => {
-    const a1 = new MockTradingAccount({ id: 'acc1', provider: 'alpaca' })
-    const a2 = new MockTradingAccount({ id: 'acc2', provider: 'ccxt' })
+    const a1 = new MockBroker({ id: 'acc1', provider: 'alpaca' })
+    const a2 = new MockBroker({ id: 'acc2', provider: 'ccxt' })
     const desc1 = new ContractDescription()
     desc1.contract = makeContract({ symbol: 'AAPL' })
     const desc2 = new ContractDescription()
@@ -135,7 +135,7 @@ describe('createTradingTools — searchContracts', () => {
   })
 
   it('returns no-results message when no accounts found anything', async () => {
-    const a1 = new MockTradingAccount({ id: 'acc1' })
+    const a1 = new MockBroker({ id: 'acc1' })
     a1.searchContracts.mockResolvedValue([])
     const mgr = makeManager(a1)
     const tools = createTradingTools(makeResolver(mgr))
@@ -152,8 +152,8 @@ describe('createTradingTools — searchContracts', () => {
   })
 
   it('skips accounts that throw during searchContracts', async () => {
-    const a1 = new MockTradingAccount({ id: 'acc1' })
-    const a2 = new MockTradingAccount({ id: 'acc2' })
+    const a1 = new MockBroker({ id: 'acc1' })
+    const a2 = new MockBroker({ id: 'acc2' })
     a1.searchContracts.mockRejectedValue(new Error('connection error'))
     const desc = new ContractDescription()
     desc.contract = makeContract({ symbol: 'BTC' })
@@ -171,7 +171,7 @@ describe('createTradingTools — searchContracts', () => {
 
 describe('createTradingTools — getPortfolio', () => {
   it('returns all positions when symbol is omitted', async () => {
-    const acc = new MockTradingAccount({ id: 'acc1' })
+    const acc = new MockBroker({ id: 'acc1' })
     acc.setPositions([
       makePosition({ contract: makeContract({ symbol: 'AAPL' }) }),
       makePosition({ contract: makeContract({ symbol: 'TSLA' }) }),
@@ -184,7 +184,7 @@ describe('createTradingTools — getPortfolio', () => {
   })
 
   it('filters to specific symbol when provided', async () => {
-    const acc = new MockTradingAccount({ id: 'acc1' })
+    const acc = new MockBroker({ id: 'acc1' })
     acc.setPositions([
       makePosition({ contract: makeContract({ symbol: 'AAPL' }) }),
       makePosition({ contract: makeContract({ symbol: 'TSLA' }) }),
