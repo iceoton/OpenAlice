@@ -10,7 +10,6 @@ import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-
 import { pino } from 'pino'
 import type { ContentBlock } from '../../core/session.js'
 import { readAIProviderConfig } from '../../core/config.js'
-import { logToolCall } from '../utils.js'
 
 const logger = pino({
   transport: { target: 'pino/file', options: { destination: 'logs/agent-sdk.log', mkdir: true } },
@@ -158,7 +157,6 @@ export async function askAgentSdk(
           const blocks: ContentBlock[] = []
           for (const block of msg.content) {
             if (block.type === 'tool_use') {
-              logToolCall(block.name, block.input)
               logger.info({ tool: block.name, input: block.input }, 'tool_use')
               blocks.push({ type: 'tool_use', id: block.id, name: block.name, input: block.input })
               onToolUse?.({ id: block.id, name: block.name, input: block.input })

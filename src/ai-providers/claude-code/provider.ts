@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { pino } from 'pino'
 import type { ClaudeCodeConfig, ClaudeCodeResult, ClaudeCodeMessage } from './types.js'
 import type { ContentBlock } from '../../core/session.js'
-import { logToolCall } from '../utils.js'
+
 
 const logger = pino({
   transport: { target: 'pino/file', options: { destination: 'logs/claude-code.log', mkdir: true } },
@@ -126,7 +126,6 @@ export async function askClaudeCode(
             const blocks: ContentBlock[] = []
             for (const block of event.message.content) {
               if (block.type === 'tool_use') {
-                logToolCall(block.name, block.input)
                 logger.info({ tool: block.name, input: block.input }, 'tool_use')
                 blocks.push({ type: 'tool_use', id: block.id, name: block.name, input: block.input })
                 onToolUse?.({ id: block.id, name: block.name, input: block.input })

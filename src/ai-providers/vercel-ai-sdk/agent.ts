@@ -1,6 +1,5 @@
 import { ToolLoopAgent, stepCountIs } from 'ai'
 import type { LanguageModel, Tool } from 'ai'
-import { logToolCall } from '../utils.js'
 
 /**
  * Create a generic ToolLoopAgent with externally-provided tools.
@@ -19,11 +18,6 @@ export function createAgent(
     tools,
     instructions,
     stopWhen: stepCountIs(maxSteps),
-    onStepFinish: (step) => {
-      for (const tc of step.toolCalls) {
-        logToolCall(tc.toolName, tc.input)
-      }
-    },
   })
 }
 

@@ -5,6 +5,7 @@ import { useChat } from '../hooks/useChat'
 import { ChatMessage, ToolCallGroup, ThinkingIndicator, StreamingToolGroup } from '../components/ChatMessage'
 import { ChatInput } from '../components/ChatInput'
 import { ChannelConfigModal } from '../components/ChannelConfigModal'
+import { PushApprovalPanel } from '../components/PushApprovalPanel'
 
 interface ChatPageProps {
   onSSEStatus?: (connected: boolean) => void
@@ -129,6 +130,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
   }, [activeChannel, switchToChannel])
 
   return (
+    <div className="flex flex-1 min-h-0">
     <div className="flex flex-col flex-1 min-h-0 max-w-[800px] mx-auto w-full">
       {/* Sub-channel context bar */}
       {isOnSubChannel && (
@@ -409,6 +411,8 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
           }}
         />
       )}
+    </div>
+    <PushApprovalPanel />
     </div>
   )
 }

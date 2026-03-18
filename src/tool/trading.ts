@@ -309,19 +309,21 @@ NOTE: This stages the operation. Call tradingCommit + tradingPush to execute.`,
     }),
 
     tradingPush: tool({
-      description: 'Execute all committed trading operations (like "git push"). Must call tradingCommit first.',
+      description: 'Trading push requires manual approval — call tradingStatus to show the user what is pending, then tell them to approve in the UI.',
       inputSchema: z.object({
-        source: z.string().optional().describe(sourceDesc(false, 'If omitted, pushes all committed accounts.')),
+        source: z.string().optional().describe(sourceDesc(false, 'If omitted, checks all accounts.')),
       }),
       execute: async ({ source }) => {
         const targets = manager.resolve(source)
-        const results: Array<Record<string, unknown>> = []
-        for (const uta of targets) {
-          if (!uta.status().pendingMessage) continue
-          results.push({ source: uta.id, ...await uta.push() })
+        const pending = targets.filter(uta => uta.status().pendingMessage)
+        if (pending.length === 0) return { message: 'No committed operations to push.' }
+        return {
+          message: 'Push requires manual approval. The user can approve pending operations in the UI.',
+          pending: pending.map(uta => ({
+            source: uta.id,
+            ...uta.status(),
+          })),
         }
-        if (results.length === 0) return { message: 'No committed operations to push.' }
-        return results.length === 1 ? results[0] : results
       },
     }),
 

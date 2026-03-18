@@ -5,7 +5,8 @@
  */
 
 import { createHash } from 'crypto'
-import { UNSET_DOUBLE, UNSET_DECIMAL } from '@traderalice/ibkr'
+import Decimal from 'decimal.js'
+import { Order, UNSET_DOUBLE, UNSET_DECIMAL } from '@traderalice/ibkr'
 import type { ITradingGit, TradingGitConfig } from './interfaces.js'
 import type {
   CommitHash,
@@ -14,6 +15,7 @@ import type {
   AddResult,
   CommitPrepareResult,
   PushResult,
+  RejectResult,
   GitStatus,
   GitCommit,
   GitState,
@@ -138,6 +140,50 @@ export class TradingGit implements ITradingGit {
     return { hash, message, operationCount: operations.length, submitted, rejected }
   }
 
+  async reject(reason?: string): Promise<RejectResult> {
+    if (this.stagingArea.length === 0) {
+      throw new Error('Nothing to reject: staging area is empty')
+    }
+    if (this.pendingMessage === null || this.pendingHash === null) {
+      throw new Error('Nothing to reject: please commit first')
+    }
+
+    const operations = [...this.stagingArea]
+    const message = `[rejected] ${this.pendingMessage}${reason ? ` — ${reason}` : ''}`
+    const hash = this.pendingHash
+
+    const results: OperationResult[] = operations.map((op) => ({
+      action: op.action,
+      success: false,
+      status: 'user-rejected' as const,
+      error: reason || 'Rejected by user',
+    }))
+
+    const stateAfter = await this.config.getGitState()
+
+    const commit: GitCommit = {
+      hash,
+      parentHash: this.head,
+      message,
+      operations,
+      results,
+      stateAfter,
+      timestamp: new Date().toISOString(),
+      round: this.currentRound,
+    }
+
+    this.commits.push(commit)
+    this.head = hash
+    await this.config.onCommit?.(this.exportState())
+
+    // Clear staging
+    this.stagingArea = []
+    this.pendingMessage = null
+    this.pendingHash = null
+
+    return { hash, message, operationCount: operations.length }
+  }
+
   // ==================== git log / show / status ====================
 
   log(options: { limit?: number; symbol?: string } = {}): CommitLogEntry[] {
@@ -197,6 +243,9 @@ export class TradingGit implements ITradingGit {
         const hasCash = cashQty !== UNSET_DOUBLE && cashQty > 0
         const sizeStr = hasCash ? `$${cashQty}` : hasQty ? `${qty}` : '?'
 
+        if (result?.status === 'user-rejected') {
+          return `${side} ${sizeStr} (user-rejected)`
+        }
         if (result?.status === 'filled') {
           const price = result.execution?.price ? ` @${result.execution.price}` : ''
           return `${side} ${sizeStr}${price}`
@@ -250,9 +299,54 @@ export class TradingGit implements ITradingGit {
 
   static restore(state: GitExportState, config: TradingGitConfig): TradingGit {
     const git = new TradingGit(config)
-    git.commits = [...state.commits]
+    git.commits = state.commits.map(TradingGit.rehydrateCommit)
     git.head = state.head
     return git
+  }
+
+  /** Rehydrate Decimal fields lost during JSON round-trip. */
+  private static rehydrateCommit(commit: GitCommit): GitCommit {
+    return {
+      ...commit,
+      operations: commit.operations.map(TradingGit.rehydrateOperation),
+      stateAfter: TradingGit.rehydrateGitState(commit.stateAfter),
+    }
+  }
+
+  private static rehydrateOperation(op: Operation): Operation {
+    switch (op.action) {
+      case 'placeOrder':
+        return {
+          ...op,
+          order: op.order ? TradingGit.rehydrateOrder(op.order) : op.order,
+        }
+      case 'closePosition':
+        return {
+          ...op,
+          quantity: op.quantity != null ? new Decimal(String(op.quantity)) : op.quantity,
+        }
+      default:
+        return op
+    }
+  }
+
+  private static rehydrateOrder(order: Order): Order {
+    const rehydrated = Object.assign(new Order(), order)
+    // totalQuantity is the critical Decimal field on Order
+    if (order.totalQuantity != null) {
+      rehydrated.totalQuantity = new Decimal(String(order.totalQuantity))
+    }
+    return rehydrated
+  }
+
+  private static rehydrateGitState(state: GitState): GitState {
+    return {
+      ...state,
+      positions: state.positions.map((pos) => ({
+        ...pos,
+        quantity: new Decimal(String(pos.quantity)),
+      })),
+    }
   }
 
   setCurrentRound(round: number): void {

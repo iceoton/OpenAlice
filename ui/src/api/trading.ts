@@ -1,5 +1,5 @@
 import { fetchJson } from './client'
-import type { TradingAccount, AccountInfo, Position, WalletCommitLog, ReconnectResult, PlatformConfig, AccountConfig } from './types'
+import type { TradingAccount, AccountInfo, Position, WalletCommitLog, ReconnectResult, PlatformConfig, AccountConfig, WalletStatus, WalletPushResult, WalletRejectResult } from './types'
 
 // ==================== Unified Trading API ====================
 
@@ -45,6 +45,34 @@ export const tradingApi = {
 
   async walletShow(accountId: string, hash: string): Promise<unknown> {
     return fetchJson(`/api/trading/accounts/${accountId}/wallet/show/${hash}`)
+  },
+
+  // ==================== Wallet operations ====================
+
+  async walletStatus(accountId: string): Promise<WalletStatus> {
+    return fetchJson(`/api/trading/accounts/${accountId}/wallet/status`)
+  },
+
+  async walletReject(accountId: string, reason?: string): Promise<WalletRejectResult> {
+    const res = await fetch(`/api/trading/accounts/${accountId}/wallet/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reason ? { reason } : {}),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || `Reject failed (${res.status})`)
+    }
+    return res.json()
+  },
+
+  async walletPush(accountId: string): Promise<WalletPushResult> {
+    const res = await fetch(`/api/trading/accounts/${accountId}/wallet/push`, { method: 'POST' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || `Push failed (${res.status})`)
+    }
+    return res.json()
   },
 
   // ==================== Trading Config CRUD ====================
