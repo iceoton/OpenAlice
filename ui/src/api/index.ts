@@ -51,6 +51,7 @@ export type {
   NewsCollectorConfig,
   NewsCollectorFeed,
   ToolCallRecord,
+  LoginMethod,
 } from './types'
 export type { EventQueryResult } from './events'
 export type { ToolCallQueryResult } from './agentStatus'

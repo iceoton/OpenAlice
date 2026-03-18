@@ -7,10 +7,13 @@ export interface VercelAiSdkOverride {
   apiKey?: string
 }
 
+export type LoginMethod = 'api-key' | 'claudeai'
+
 export interface AgentSdkOverride {
   model?: string
   baseUrl?: string
   apiKey?: string
+  loginMethod?: LoginMethod
 }
 
 export interface WebChannel {
@@ -61,6 +64,7 @@ export interface AIProviderConfig {
   provider: string
   model: string
   baseUrl?: string
+  loginMethod?: LoginMethod
   apiKeys: { anthropic?: string; openai?: string; google?: string }
 }
 

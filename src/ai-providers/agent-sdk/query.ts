@@ -9,6 +9,7 @@ import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk'
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { pino } from 'pino'
 import type { ContentBlock } from '../../core/session.js'
+
 import { readAIProviderConfig } from '../../core/config.js'
 
 const logger = pino({
@@ -37,6 +38,7 @@ export interface AgentSdkOverride {
   model?: string
   apiKey?: string
   baseUrl?: string
+  loginMethod?: 'api-key' | 'claudeai'
 }
 
 export interface AgentSdkMessage {
@@ -115,12 +117,20 @@ export async function askAgentSdk(
   const finalAllowed = allowedTools.length > 0 ? allowedTools : modeAllowed
   const finalDisallowed = [...disallowedTools, ...modeDisallowed]
 
-  // Build env with API key injection
+  // Build env with authentication
   const aiConfig = await readAIProviderConfig()
-  const apiKey = override?.apiKey ?? aiConfig.apiKeys.anthropic
-  const baseUrl = override?.baseUrl ?? aiConfig.baseUrl
+  const loginMethod = override?.loginMethod ?? aiConfig.loginMethod ?? 'api-key'
+  const isOAuthMode = loginMethod === 'claudeai'
+
   const env: Record<string, string | undefined> = { ...process.env }
-  if (apiKey) env.ANTHROPIC_API_KEY = apiKey
+  if (isOAuthMode) {
+    // Force OAuth by removing any inherited API key
+    delete env.ANTHROPIC_API_KEY
+  } else {
+    const apiKey = override?.apiKey ?? aiConfig.apiKeys.anthropic
+    if (apiKey) env.ANTHROPIC_API_KEY = apiKey
+  }
+  const baseUrl = override?.baseUrl ?? aiConfig.baseUrl
   if (baseUrl) env.ANTHROPIC_BASE_URL = baseUrl
 
   // MCP servers
@@ -148,6 +158,7 @@ export async function askAgentSdk(
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         persistSession: false,
+        ...(loginMethod === 'claudeai' ? { forceLoginMethod: 'claudeai' as const } : {}),
       },
     })) {
       // assistant message — extract tool_use + text blocks

@@ -13,11 +13,15 @@ const engineSchema = z.object({
   port: z.number().int().positive().default(3000),
 })
 
+const loginMethodSchema = z.enum(['api-key', 'claudeai'])
+
 export const aiProviderSchema = z.object({
   backend: z.enum(['claude-code', 'vercel-ai-sdk', 'agent-sdk']).default('claude-code'),
   provider: z.string().default('anthropic'),
   model: z.string().default('claude-sonnet-4-6'),
   baseUrl: z.string().min(1).optional(),
+  /** Authentication method for Agent SDK: api-key (default), oauth (Console), claudeai (Pro/Max). */
+  loginMethod: loginMethodSchema.default('api-key'),
   apiKeys: z.object({
     anthropic: z.string().optional(),
     openai: z.string().optional(),
@@ -180,6 +184,7 @@ export const agentSdkOverrideSchema = z.object({
   model: z.string().optional(),
   apiKey: z.string().optional(),
   baseUrl: z.string().optional(),
+  loginMethod: loginMethodSchema.optional(),
 })
 
 export const webSubchannelSchema = z.object({
@@ -445,15 +450,6 @@ async function migrateLegacyTradingConfig(): Promise<{
   return { platforms, accounts }
 }
 
-// ==================== Config change notification ====================
-
-let onConfigChange: (() => void) | null = null
-
-/** Register a callback invoked after any config write (writeConfigSection, writePlatformsConfig, writeAccountsConfig). */
-export function setOnConfigChange(cb: () => void): void {
-  onConfigChange = cb
-}
-
 // ==================== Platform / Account file helpers ====================
 
 export async function readPlatformsConfig(): Promise<PlatformConfig[]> {
@@ -465,7 +461,6 @@ export async function writePlatformsConfig(platforms: PlatformConfig[]): Promise
   const validated = platformsFileSchema.parse(platforms)
   await mkdir(CONFIG_DIR, { recursive: true })
   await writeFile(resolve(CONFIG_DIR, 'platforms.json'), JSON.stringify(validated, null, 2) + '\n')
-  onConfigChange?.()
 }
 
 export async function readAccountsConfig(): Promise<AccountConfig[]> {
@@ -477,7 +472,6 @@ export async function writeAccountsConfig(accounts: AccountConfig[]): Promise<vo
   const validated = accountsFileSchema.parse(accounts)
   await mkdir(CONFIG_DIR, { recursive: true })
   await writeFile(resolve(CONFIG_DIR, 'accounts.json'), JSON.stringify(validated, null, 2) + '\n')
-  onConfigChange?.()
 }
 
 // ==================== Hot-read helpers ====================
@@ -581,7 +575,6 @@ export async function writeConfigSection(section: ConfigSection, data: unknown):
   const validated = schema.parse(data)
   await mkdir(CONFIG_DIR, { recursive: true })
   await writeFile(resolve(CONFIG_DIR, sectionFiles[section]), JSON.stringify(validated, null, 2) + '\n')
-  onConfigChange?.()
   return validated
 }
 

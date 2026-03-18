@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { api, type AppConfig, type AIProviderConfig } from '../api'
+import { api, type AppConfig, type AIProviderConfig, type LoginMethod } from '../api'
 import { SaveIndicator } from '../components/SaveIndicator'
 import { Section, Field, inputClass } from '../components/form'
 import { useAutoSave, type SaveStatus } from '../hooks/useAutoSave'
 import { PageHeader } from '../components/PageHeader'
 import { PageLoading } from '../components/StateViews'
+
+const LOGIN_METHODS: { value: LoginMethod; label: string; description: string }[] = [
+  { value: 'api-key', label: 'API Key', description: 'Use Anthropic API key' },
+  { value: 'claudeai', label: 'Claude Pro/Max', description: 'Claude.ai subscription billing via Claude Code login' },
+]
 
 const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
   anthropic: [
@@ -88,6 +93,13 @@ export function AIProviderPage() {
                 ))}
               </div>
             </Section>
+
+            {/* Auth mode (only for Agent SDK) */}
+            {config.aiProvider.backend === 'agent-sdk' && (
+              <Section id="auth" title="Authentication" description="How Agent SDK authenticates with Anthropic. OAuth modes use your local Claude Code login.">
+                <AgentSdkAuthForm aiProvider={config.aiProvider} onUpdate={(patch) => setConfig((c) => c ? { ...c, aiProvider: { ...c.aiProvider, ...patch } } : c)} />
+              </Section>
+            )}
 
             {/* Model (only for Vercel AI SDK) */}
             {config.aiProvider.backend === 'vercel-ai-sdk' && (
@@ -353,6 +365,91 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
           </div>
         )}
       </div>
+    </>
+  )
+}
+
+// ==================== Agent SDK Auth Form ====================
+
+function AgentSdkAuthForm({ aiProvider, onUpdate }: { aiProvider: AIProviderConfig; onUpdate: (patch: Partial<AIProviderConfig>) => void }) {
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>(aiProvider.loginMethod ?? 'api-key')
+  const [apiKey, setApiKey] = useState('')
+  const [keySaveStatus, setKeySaveStatus] = useState<SaveStatus>('idle')
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
+
+  const handleLoginMethodChange = async (method: LoginMethod) => {
+    setLoginMethod(method)
+    try {
+      await api.config.updateSection('aiProvider', { ...aiProvider, loginMethod: method })
+      onUpdate({ loginMethod: method })
+    } catch { /* revert on failure */ setLoginMethod(loginMethod) }
+  }
+
+  const handleSaveKey = async () => {
+    if (!apiKey) return
+    setKeySaveStatus('saving')
+    try {
+      const updatedKeys = { ...aiProvider.apiKeys, anthropic: apiKey }
+      await api.config.updateSection('aiProvider', { ...aiProvider, apiKeys: updatedKeys })
+      onUpdate({ apiKeys: updatedKeys })
+      setApiKey('')
+      setKeySaveStatus('saved')
+      if (savedTimer.current) clearTimeout(savedTimer.current)
+      savedTimer.current = setTimeout(() => setKeySaveStatus('idle'), 2000)
+    } catch { setKeySaveStatus('error') }
+  }
+
+  return (
+    <>
+      <Field label="Login Method">
+        <div className="flex border border-border rounded-lg overflow-hidden">
+          {LOGIN_METHODS.map((m, i) => (
+            <button
+              key={m.value}
+              onClick={() => handleLoginMethodChange(m.value)}
+              className={`flex-1 py-2 px-3 text-[13px] font-medium transition-colors ${
+                loginMethod === m.value
+                  ? 'bg-accent-dim text-accent'
+                  : 'bg-bg text-text-muted hover:bg-bg-tertiary hover:text-text'
+              } ${i > 0 ? 'border-l border-border' : ''}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-text-muted mt-1">
+          {LOGIN_METHODS.find((m) => m.value === loginMethod)?.description}
+        </p>
+      </Field>
+
+      {loginMethod === 'api-key' && (
+        <Field label="Anthropic API Key">
+          <div className="relative">
+            <input
+              className={inputClass}
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={aiProvider.apiKeys?.anthropic ? '(configured)' : 'sk-ant-...'}
+            />
+            {aiProvider.apiKeys?.anthropic && (
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">active</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <button
+              onClick={handleSaveKey}
+              disabled={!apiKey || keySaveStatus === 'saving'}
+              className="bg-user-bubble text-white rounded-lg px-4 py-2 text-[13px] font-medium cursor-pointer transition-opacity hover:opacity-85 disabled:opacity-50"
+            >
+              Save Key
+            </button>
+            <SaveIndicator status={keySaveStatus} onRetry={handleSaveKey} />
+          </div>
+        </Field>
+      )}
     </>
   )
 }
