@@ -153,7 +153,7 @@ export class AccountManager {
         totalEquity += info.netLiquidation
         totalCash += info.totalCashValue
         totalUnrealizedPnL += info.unrealizedPnL
-        totalRealizedPnL += info.realizedPnL
+        totalRealizedPnL += info.realizedPnL ?? 0
       }
       accounts.push({
         id,

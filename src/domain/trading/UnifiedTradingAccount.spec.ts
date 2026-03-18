@@ -525,15 +525,49 @@ describe('UTA — health tracking', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
-  it('starts healthy', () => {
-    const { uta } = createUTA()
+  /** Let _connect() (fire-and-forget from constructor) complete via microtask flush. */
+  async function flush() { await vi.advanceTimersByTimeAsync(0) }
+
+  it('connects automatically on construction and becomes healthy', async () => {
+    const broker = new MockBroker()
+    const { uta } = createUTA(broker)
+    await flush()
+
     expect(uta.health).toBe('healthy')
-    expect(uta.getHealthInfo().consecutiveFailures).toBe(0)
+    expect(uta.getHealthInfo().lastSuccessAt).toBeInstanceOf(Date)
+  })
+
+  it('goes offline and starts recovery when initial connect fails', async () => {
+    const broker = new MockBroker()
+    broker.setFailMode(100) // init + getAccount will fail
+    const { uta } = createUTA(broker)
+    await flush()
+
+    expect(uta.health).toBe('offline')
+    expect(uta.getHealthInfo().recovering).toBe(true)
+    await uta.close()
+  })
+
+  it('auto-recovers after initial connect failure when broker comes back', async () => {
+    const broker = new MockBroker()
+    // _connect calls init() which fails (consumes 1). Recovery at 5s: init() + getAccount() succeed.
+    broker.setFailMode(1)
+    const { uta } = createUTA(broker)
+    await flush()
+
+    expect(uta.health).toBe('offline')
+
+    // Advance to trigger first recovery attempt — broker is back (failMode exhausted)
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    expect(uta.health).toBe('healthy')
+    expect(uta.getHealthInfo().recovering).toBe(false)
   })
 
   it('transitions healthy → degraded after 3 consecutive failures', async () => {
     const broker = new MockBroker()
     const { uta } = createUTA(broker)
+    await flush()
     broker.setFailMode(3)
 
     for (let i = 0; i < 3; i++) {
@@ -545,17 +579,20 @@ describe('UTA — health tracking', () => {
   it('transitions degraded → offline after 6 consecutive failures', async () => {
     const broker = new MockBroker()
     const { uta } = createUTA(broker)
+    await flush()
     broker.setFailMode(6)
 
     for (let i = 0; i < 6; i++) {
       await expect(uta.getAccount()).rejects.toThrow()
     }
     expect(uta.health).toBe('offline')
+    await uta.close()
   })
 
   it('resets to healthy on any successful call', async () => {
     const broker = new MockBroker()
     const { uta } = createUTA(broker)
+    await flush()
     broker.setFailMode(4)
 
     for (let i = 0; i < 4; i++) {
@@ -572,6 +609,7 @@ describe('UTA — health tracking', () => {
   it('fails fast when offline and recovering', async () => {
     const broker = new MockBroker()
     const { uta } = createUTA(broker)
+    await flush()
     broker.setFailMode(100)
 
     for (let i = 0; i < 6; i++) {
@@ -588,6 +626,7 @@ describe('UTA — health tracking', () => {
   it('push() throws when offline', async () => {
     const broker = new MockBroker()
     const { uta } = createUTA(broker)
+    await flush()
     broker.setFailMode(100)
 
     for (let i = 0; i < 6; i++) {
@@ -600,21 +639,13 @@ describe('UTA — health tracking', () => {
     await uta.close()
   })
 
-  it('markOffline sets offline state and starts recovery', () => {
-    const { uta } = createUTA()
-    uta.markOffline('connection lost')
-
-    expect(uta.health).toBe('offline')
-    expect(uta.getHealthInfo().recovering).toBe(true)
-    expect(uta.getHealthInfo().lastError).toBe('connection lost')
-    uta.close()
-  })
-
-  it('auto-recovery restores healthy after broker comes back', async () => {
+  it('auto-recovery restores healthy after runtime disconnect', async () => {
     const broker = new MockBroker()
     const { uta } = createUTA(broker)
+    await flush()
+    expect(uta.health).toBe('healthy')
 
-    // Go offline
+    // Go offline via runtime failures
     broker.setFailMode(6)
     for (let i = 0; i < 6; i++) {
       await expect(uta.getAccount()).rejects.toThrow()
@@ -631,8 +662,9 @@ describe('UTA — health tracking', () => {
 
   it('close() cancels recovery timer', async () => {
     const broker = new MockBroker()
+    broker.setFailMode(100)
     const { uta } = createUTA(broker)
-    uta.markOffline('test')
+    await flush()
 
     expect(uta.getHealthInfo().recovering).toBe(true)
     await uta.close()
@@ -642,9 +674,8 @@ describe('UTA — health tracking', () => {
   it('getHealthInfo returns full snapshot', async () => {
     const broker = new MockBroker()
     const { uta } = createUTA(broker)
+    await flush()
 
-    // Successful call
-    await uta.getAccount()
     const info = uta.getHealthInfo()
     expect(info.status).toBe('healthy')
     expect(info.consecutiveFailures).toBe(0)
@@ -655,6 +686,7 @@ describe('UTA — health tracking', () => {
   it('tracks health across different broker methods', async () => {
     const broker = new MockBroker()
     const { uta } = createUTA(broker)
+    await flush()
     broker.setFailMode(2)
 
     await expect(uta.getAccount()).rejects.toThrow()

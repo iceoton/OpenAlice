@@ -145,7 +145,7 @@ export class UnifiedTradingAccount {
         netLiquidation: accountInfo.netLiquidation,
         totalCashValue: accountInfo.totalCashValue,
         unrealizedPnL: accountInfo.unrealizedPnL,
-        realizedPnL: accountInfo.realizedPnL,
+        realizedPnL: accountInfo.realizedPnL ?? 0,
         positions,
         pendingOrders: orders.filter(o => o.orderState.status === 'Submitted' || o.orderState.status === 'PreSubmitted'),
       }
@@ -177,6 +177,10 @@ export class UnifiedTradingAccount {
     this.git = options.savedState
       ? TradingGit.restore(options.savedState, gitConfig)
       : new TradingGit(gitConfig)
+
+    // Kick off broker connection asynchronously — UTA is usable immediately,
+    // broker queries will fail (tracked by health) until init succeeds.
+    this._connect()
   }
 
   // ==================== Health ====================
@@ -198,12 +202,21 @@ export class UnifiedTradingAccount {
     }
   }
 
-  /** Force offline state and start recovery. Used when broker.init() fails at startup. */
-  markOffline(reason: string): void {
-    this._consecutiveFailures = UnifiedTradingAccount.OFFLINE_THRESHOLD
-    this._lastError = reason
-    this._lastFailureAt = new Date()
-    this._startRecovery()
+  /** Initial broker connection — fire-and-forget from constructor. */
+  private async _connect(): Promise<void> {
+    try {
+      await this.broker.init()
+      await this.broker.getAccount()
+      this._onSuccess()
+      console.log(`UTA[${this.id}]: connected`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`UTA[${this.id}]: initial connect failed: ${msg}`)
+      this._consecutiveFailures = UnifiedTradingAccount.OFFLINE_THRESHOLD
+      this._lastError = msg
+      this._lastFailureAt = new Date()
+      this._startRecovery()
+    }
   }
 
   private async _callBroker<T>(fn: () => Promise<T>): Promise<T> {
@@ -479,10 +492,6 @@ export class UnifiedTradingAccount {
   }
 
   // ==================== Lifecycle ====================
-
-  init(): Promise<void> {
-    return this.broker.init()
-  }
 
   async close(): Promise<void> {
     if (this._recoveryTimer) {
