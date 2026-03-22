@@ -7,7 +7,7 @@
  * Run: pnpm test:e2e
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { getTestAccounts, filterByProvider } from './setup.js'
 import { UnifiedTradingAccount } from '../../UnifiedTradingAccount.js'
 import type { IBroker } from '../../brokers/types.js'
@@ -38,13 +38,13 @@ describe('UTA — Bybit lifecycle (ETH perp)', () => {
     console.log(`UTA Bybit: ETH perp aliceId=${ethAliceId}`)
   }, 60_000)
 
-  it('buy → sync → verify → close → sync → verify', async () => {
-    if (!broker) { console.log('e2e: skipped — no Bybit demo account'); return }
+  beforeEach(({ skip }) => { if (!broker) skip('no Bybit demo account') })
 
-    const uta = new UnifiedTradingAccount(broker)
+  it('buy → sync → verify → close → sync → verify', async () => {
+    const uta = new UnifiedTradingAccount(broker!)
 
     // Record initial state
-    const initialPositions = await broker.getPositions()
+    const initialPositions = await broker!.getPositions()
     const initialEthQty = initialPositions.find(p => p.contract.localSymbol?.includes('USDT:USDT'))?.quantity.toNumber() ?? 0
     console.log(`  initial ETH qty=${initialEthQty}`)
 
@@ -106,7 +106,7 @@ describe('UTA — Bybit lifecycle (ETH perp)', () => {
     }
 
     // === Verify: net change should be ~0 ===
-    const finalPositions = await broker.getPositions()
+    const finalPositions = await broker!.getPositions()
     const finalEthQty = finalPositions.find(p => p.contract.localSymbol?.includes('USDT:USDT'))?.quantity.toNumber() ?? 0
     console.log(`  final ETH qty=${finalEthQty} (initial was ${initialEthQty})`)
     expect(Math.abs(finalEthQty - initialEthQty)).toBeLessThan(0.02)

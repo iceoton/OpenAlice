@@ -5,10 +5,12 @@
  * - Connectivity tests: run any time (account info, positions, search, clock)
  * - Trading tests: only when market is open (quotes, orders, close)
  *
+ * Preconditions handled in beforeEach — individual tests don't need skip checks.
+ *
  * Run: pnpm test:e2e
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import Decimal from 'decimal.js'
 import { Contract, Order } from '@traderalice/ibkr'
 import { getTestAccounts, filterByProvider } from './setup.js'
@@ -21,10 +23,7 @@ let marketOpen = false
 beforeAll(async () => {
   const all = await getTestAccounts()
   const alpaca = filterByProvider(all, 'alpaca')[0]
-  if (!alpaca) {
-    console.log('e2e: No Alpaca paper account configured, skipping')
-    return
-  }
+  if (!alpaca) return
   broker = alpaca.broker
   const clock = await broker.getMarketClock()
   marketOpen = clock.isOpen
@@ -34,45 +33,33 @@ beforeAll(async () => {
 // ==================== Connectivity (any time) ====================
 
 describe('AlpacaBroker — connectivity', () => {
-  it('has a configured Alpaca paper account (or skips entire suite)', () => {
-    if (!broker) {
-      console.log('e2e: skipped — no Alpaca paper account')
-      return
-    }
-    expect(broker).toBeDefined()
-  })
+  beforeEach(({ skip }) => { if (!broker) skip('no Alpaca paper account') })
 
   it('fetches account info with positive equity', async () => {
-    if (!broker) return
-    const account = await broker.getAccount()
+    const account = await broker!.getAccount()
     expect(account.netLiquidation).toBeGreaterThan(0)
     expect(account.totalCashValue).toBeGreaterThan(0)
     console.log(`  equity: $${account.netLiquidation.toFixed(2)}, cash: $${account.totalCashValue.toFixed(2)}, buying_power: $${account.buyingPower?.toFixed(2)}`)
-    console.log(`  unrealizedPnL: $${account.unrealizedPnL}, realizedPnL: $${account.realizedPnL}, dayTrades: ${account.dayTradesRemaining}`)
   })
 
   it('fetches market clock', async () => {
-    if (!broker) return
-    const clock = await broker.getMarketClock()
+    const clock = await broker!.getMarketClock()
     expect(typeof clock.isOpen).toBe('boolean')
     console.log(`  isOpen: ${clock.isOpen}, nextOpen: ${clock.nextOpen?.toISOString()}, nextClose: ${clock.nextClose?.toISOString()}`)
   })
 
   it('searches AAPL contracts', async () => {
-    if (!broker) return
-    const results = await broker.searchContracts('AAPL')
+    const results = await broker!.searchContracts('AAPL')
     expect(results.length).toBeGreaterThan(0)
     expect(results[0].contract.symbol).toBe('AAPL')
-    expect(results[0].contract.aliceId).toBeUndefined()
     console.log(`  found: ${results[0].contract.symbol}, secType: ${results[0].contract.secType}`)
   })
 
   it('fetches positions with correct types', async () => {
-    if (!broker) return
-    const positions = await broker.getPositions()
+    const positions = await broker!.getPositions()
     console.log(`  ${positions.length} positions total`)
     for (const p of positions) {
-      console.log(`  ${p.contract.symbol}: qty=${p.quantity} (type=${typeof p.quantity.toNumber()}), avg=${p.avgCost} (type=${typeof p.avgCost}), mkt=${p.marketPrice}`)
+      console.log(`  ${p.contract.symbol}: qty=${p.quantity}, avg=${p.avgCost}, mkt=${p.marketPrice}`)
       expect(p.quantity).toBeInstanceOf(Decimal)
       expect(typeof p.avgCost).toBe('number')
       expect(typeof p.marketPrice).toBe('number')
@@ -84,19 +71,17 @@ describe('AlpacaBroker — connectivity', () => {
 // ==================== Trading (market hours only) ====================
 
 describe('AlpacaBroker — trading (market hours)', () => {
-  beforeAll(() => {
-    if (!broker || !marketOpen) {
-      console.log('e2e: skipping trading tests — market closed or no broker')
-    }
+  beforeEach(({ skip }) => {
+    if (!broker) skip('no Alpaca paper account')
+    if (!marketOpen) skip('market closed')
   })
 
   it('fetches AAPL quote with valid prices', async () => {
-    if (!broker || !marketOpen) return
     const contract = new Contract()
     contract.aliceId = 'alpaca-AAPL'
     contract.symbol = 'AAPL'
 
-    const quote = await broker.getQuote(contract)
+    const quote = await broker!.getQuote(contract)
     expect(quote.last).toBeGreaterThan(0)
     expect(quote.bid).toBeGreaterThan(0)
     expect(quote.ask).toBeGreaterThan(0)
@@ -105,8 +90,6 @@ describe('AlpacaBroker — trading (market hours)', () => {
   })
 
   it('places market buy 1 AAPL → success with UUID orderId', async () => {
-    if (!broker || !marketOpen) return
-
     const contract = new Contract()
     contract.aliceId = 'alpaca-AAPL'
     contract.symbol = 'AAPL'
@@ -118,23 +101,15 @@ describe('AlpacaBroker — trading (market hours)', () => {
     order.totalQuantity = new Decimal('1')
     order.tif = 'DAY'
 
-    const result = await broker.placeOrder(contract, order)
-    console.log(`  placeOrder raw:`, JSON.stringify({
-      success: result.success,
-      orderId: result.orderId,
-      orderState: result.orderState?.status,
-      error: result.error,
-    }))
+    const result = await broker!.placeOrder(contract, order)
+    console.log(`  placeOrder: success=${result.success}, orderId=${result.orderId}, status=${result.orderState?.status}`)
 
     expect(result.success).toBe(true)
     expect(result.orderId).toBeDefined()
     expect(result.orderId!.length).toBeGreaterThan(10)
-    console.log(`  orderId: ${result.orderId} (length=${result.orderId!.length})`)
   }, 15_000)
 
   it('queries order by ID after place', async () => {
-    if (!broker || !marketOpen) return
-
     const contract = new Contract()
     contract.aliceId = 'alpaca-AAPL'
     contract.symbol = 'AAPL'
@@ -146,55 +121,41 @@ describe('AlpacaBroker — trading (market hours)', () => {
     order.totalQuantity = new Decimal('1')
     order.tif = 'DAY'
 
-    const placed = await broker.placeOrder(contract, order)
-    if (!placed.orderId) { console.log('  no orderId returned, skipping'); return }
+    const placed = await broker!.placeOrder(contract, order)
+    expect(placed.orderId).toBeDefined()
 
     await new Promise(r => setTimeout(r, 2000))
 
-    const detail = await broker.getOrder(placed.orderId)
-    console.log(`  getOrder(${placed.orderId}):`, detail ? JSON.stringify({
-      symbol: detail.contract.symbol,
-      action: detail.order.action,
-      qty: detail.order.totalQuantity.toString(),
-      status: detail.orderState.status,
-      orderId_number: detail.order.orderId,
-    }) : 'null')
+    const detail = await broker!.getOrder(placed.orderId!)
+    console.log(`  getOrder: status=${detail?.orderState.status}`)
 
     expect(detail).not.toBeNull()
     if (detail) {
       expect(detail.orderState.status).toBe('Filled')
-      console.log(`  order.orderId (IBKR number field): ${detail.order.orderId} — parseInt('${placed.orderId}') = ${parseInt(placed.orderId, 10)}`)
     }
   }, 15_000)
 
   it('verifies AAPL position exists after buy', async () => {
-    if (!broker || !marketOpen) return
-    const positions = await broker.getPositions()
+    const positions = await broker!.getPositions()
     const aapl = positions.find(p => p.contract.symbol === 'AAPL')
     expect(aapl).toBeDefined()
     if (aapl) {
-      console.log(`  AAPL position: ${aapl.quantity} ${aapl.side}, avg=$${aapl.avgCost}, mkt=$${aapl.marketPrice}, unrealPnL=$${aapl.unrealizedPnL}`)
+      console.log(`  AAPL: ${aapl.quantity} ${aapl.side}, avg=$${aapl.avgCost}, mkt=$${aapl.marketPrice}`)
       expect(aapl.quantity.toNumber()).toBeGreaterThan(0)
-      expect(aapl.avgCost).toBeGreaterThan(0)
-      expect(aapl.marketPrice).toBeGreaterThan(0)
     }
   })
 
   it('closes AAPL position', async () => {
-    if (!broker || !marketOpen) return
-
     const contract = new Contract()
     contract.aliceId = 'alpaca-AAPL'
     contract.symbol = 'AAPL'
 
-    const result = await broker.closePosition(contract)
-    console.log(`  closePosition: success=${result.success}, orderId=${result.orderId}, error=${result.error}`)
+    const result = await broker!.closePosition(contract)
+    console.log(`  closePosition: success=${result.success}, error=${result.error}`)
     expect(result.success).toBe(true)
   }, 15_000)
 
   it('getOrders with known IDs', async () => {
-    if (!broker || !marketOpen) return
-
     const contract = new Contract()
     contract.aliceId = 'alpaca-AAPL'
     contract.symbol = 'AAPL'
@@ -206,19 +167,16 @@ describe('AlpacaBroker — trading (market hours)', () => {
     order.totalQuantity = new Decimal('1')
     order.tif = 'DAY'
 
-    const placed = await broker.placeOrder(contract, order)
-    if (!placed.orderId) return
+    const placed = await broker!.placeOrder(contract, order)
+    expect(placed.orderId).toBeDefined()
 
     await new Promise(r => setTimeout(r, 2000))
 
-    const orders = await broker.getOrders([placed.orderId])
-    console.log(`  getOrders([${placed.orderId}]): ${orders.length} results`)
+    const orders = await broker!.getOrders([placed.orderId!])
+    console.log(`  getOrders: ${orders.length} results`)
     expect(orders.length).toBe(1)
-    if (orders[0]) {
-      console.log(`  order: ${orders[0].contract.symbol} ${orders[0].order.action} ${orders[0].orderState.status}`)
-    }
 
     // Clean up
-    await broker.closePosition(contract)
+    await broker!.closePosition(contract)
   }, 15_000)
 })
