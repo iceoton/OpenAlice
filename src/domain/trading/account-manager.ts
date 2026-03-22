@@ -15,7 +15,6 @@ import './contract-ext.js'
 export interface AccountSummary {
   id: string
   label: string
-  platformId?: string
   capabilities: AccountCapabilities
   health: BrokerHealthInfo
 }
@@ -72,7 +71,6 @@ export class AccountManager {
     return Array.from(this.entries.values()).map((uta) => ({
       id: uta.id,
       label: uta.label,
-      platformId: uta.platformId,
       capabilities: uta.getCapabilities(),
       health: uta.getHealthInfo(),
     }))

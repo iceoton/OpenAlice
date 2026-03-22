@@ -58,7 +58,6 @@ export interface UnifiedTradingAccountOptions {
   savedState?: GitExportState
   onCommit?: (state: GitExportState) => void | Promise<void>
   onHealthChange?: (accountId: string, health: BrokerHealthInfo) => void
-  platformId?: string
 }
 
 // ==================== Stage param types ====================
@@ -106,7 +105,6 @@ export class UnifiedTradingAccount {
   readonly label: string
   readonly broker: IBroker
   readonly git: TradingGit
-  readonly platformId?: string
 
   private readonly _getState: () => Promise<GitState>
   private readonly _onHealthChange?: (accountId: string, health: BrokerHealthInfo) => void
@@ -130,7 +128,6 @@ export class UnifiedTradingAccount {
     this.broker = broker
     this.id = broker.id
     this.label = broker.label
-    this.platformId = options.platformId
     this._onHealthChange = options.onHealthChange
 
     // Wire internals

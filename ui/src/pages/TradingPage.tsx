@@ -8,7 +8,7 @@ import { useTradingConfig } from '../hooks/useTradingConfig'
 import { useAccountHealth } from '../hooks/useAccountHealth'
 import { PageHeader } from '../components/PageHeader'
 import { api } from '../api'
-import type { PlatformConfig, CcxtPlatformConfig, AlpacaPlatformConfig, AccountConfig, BrokerHealthInfo } from '../api/types'
+import type { AccountConfig, CcxtAccountConfig, AlpacaAccountConfig, BrokerHealthInfo } from '../api/types'
 
 // ==================== Constants ====================
 
@@ -47,17 +47,8 @@ export function TradingPage() {
     )
   }
 
-  const getPlatform = (platformId: string) => tc.platforms.find((p) => p.id === platformId)
-
-  const deleteAccountWithPlatform = async (accountId: string) => {
-    const account = tc.accounts.find((a) => a.id === accountId)
-    if (!account) return
-    const platformId = account.platformId
+  const deleteAccount = async (accountId: string) => {
     await tc.deleteAccount(accountId)
-    const remaining = tc.accounts.filter((a) => a.id !== accountId && a.platformId === platformId)
-    if (remaining.length === 0) {
-      try { await tc.deletePlatform(platformId) } catch { /* best effort */ }
-    }
     setDialog(null)
   }
 
@@ -75,7 +66,6 @@ export function TradingPage() {
                 <AccountCard
                   key={account.id}
                   account={account}
-                  platform={getPlatform(account.platformId)}
                   health={healthMap[account.id]}
                   onClick={() => setDialog({ kind: 'edit', accountId: account.id })}
                 />
@@ -95,8 +85,7 @@ export function TradingPage() {
       {dialog?.kind === 'add' && (
         <CreateWizard
           existingAccountIds={tc.accounts.map((a) => a.id)}
-          onSave={async (platform, account) => {
-            await tc.savePlatform(platform)
+          onSave={async (account) => {
             await tc.saveAccount(account)
             if (account.apiKey) {
               const result = await tc.reconnectAccount(account.id)
@@ -113,16 +102,13 @@ export function TradingPage() {
       {/* Edit Dialog */}
       {dialog?.kind === 'edit' && (() => {
         const account = tc.accounts.find((a) => a.id === dialog.accountId)
-        const platform = account ? getPlatform(account.platformId) : undefined
-        if (!account || !platform) return null
+        if (!account) return null
         return (
           <EditDialog
             account={account}
-            platform={platform}
             health={healthMap[account.id]}
             onSaveAccount={tc.saveAccount}
-            onSavePlatform={tc.savePlatform}
-            onDelete={() => deleteAccountWithPlatform(account.id)}
+            onDelete={() => deleteAccount(account.id)}
             onClose={() => setDialog(null)}
           />
         )
@@ -228,22 +214,19 @@ function HealthBadge({ health, size = 'sm' }: { health?: BrokerHealthInfo; size?
 
 // ==================== Account Card ====================
 
-function AccountCard({ account, platform, health, onClick }: {
+function AccountCard({ account, health, onClick }: {
   account: AccountConfig
-  platform?: PlatformConfig
   health?: BrokerHealthInfo
   onClick: () => void
 }) {
   const isDisabled = health?.disabled
-  const badge = platform?.type === 'ccxt'
+  const badge = account.type === 'ccxt'
     ? { text: 'CC', color: 'text-accent bg-accent/10' }
     : { text: 'AL', color: 'text-green bg-green/10' }
 
-  const subtitle = platform?.type === 'ccxt'
-    ? [platform.exchange, platform.demoTrading && 'Demo', platform.sandbox && 'Sandbox'].filter(Boolean).join(' · ')
-    : platform?.type === 'alpaca'
-      ? platform.paper ? 'Paper Trading' : 'Live Trading'
-      : '—'
+  const subtitle = account.type === 'ccxt'
+    ? [account.exchange, account.demoTrading && 'Demo', account.sandbox && 'Sandbox'].filter(Boolean).join(' · ')
+    : account.paper ? 'Paper Trading' : 'Live Trading'
 
   return (
     <button
@@ -293,7 +276,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 
 function CreateWizard({ existingAccountIds, onSave, onClose }: {
   existingAccountIds: string[]
-  onSave: (platform: PlatformConfig, account: AccountConfig) => Promise<void>
+  onSave: (account: AccountConfig) => Promise<void>
   onClose: () => void
 }) {
   const [step, setStep] = useState(1)
@@ -329,16 +312,21 @@ function CreateWizard({ existingAccountIds, onSave, onClose }: {
   const handleCreate = async () => {
     setSaving(true); setError('')
     try {
-      const platformId = `${finalId}-platform`
-      const platform: PlatformConfig = type === 'ccxt'
-        ? { id: platformId, type: 'ccxt', exchange, sandbox, demoTrading }
-        : { id: platformId, type: 'alpaca', paper }
+      const account: AccountConfig = type === 'ccxt'
+        ? {
+            id: finalId, type: 'ccxt', exchange, sandbox, demoTrading,
+            apiKey, apiSecret,
+            ...(password && { password }),
+            guards: [],
+          }
+        : {
+            id: finalId, type: 'alpaca', paper,
+            apiKey, apiSecret,
+            guards: [],
+          }
 
       // Step 1: Test connection before saving anything
-      const testResult = await api.trading.testConnection(platform, {
-        apiKey, apiSecret,
-        ...(password && type === 'ccxt' && { password }),
-      })
+      const testResult = await api.trading.testConnection(account)
       if (!testResult.success) {
         setError(testResult.error || 'Connection failed — check your credentials')
         setSaving(false)
@@ -346,13 +334,7 @@ function CreateWizard({ existingAccountIds, onSave, onClose }: {
       }
 
       // Step 2: Connection verified — now persist config and create UTA
-      const account: AccountConfig = {
-        id: finalId, platformId,
-        apiKey, apiSecret,
-        ...(password && type === 'ccxt' && { password }),
-        guards: [],
-      }
-      await onSave(platform, account)
+      await onSave(account)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account')
       setSaving(false)
@@ -481,46 +463,31 @@ function CreateWizard({ existingAccountIds, onSave, onClose }: {
 
 // ==================== Edit Dialog ====================
 
-function EditDialog({ account, platform, health, onSaveAccount, onSavePlatform, onDelete, onClose }: {
+function EditDialog({ account, health, onSaveAccount, onDelete, onClose }: {
   account: AccountConfig
-  platform: PlatformConfig
   health?: BrokerHealthInfo
   onSaveAccount: (a: AccountConfig) => Promise<void>
-  onSavePlatform: (p: PlatformConfig) => Promise<void>
   onDelete: () => Promise<void>
   onClose: () => void
 }) {
-  const [accountDraft, setAccountDraft] = useState(account)
-  const [platformDraft, setPlatformDraft] = useState(platform)
+  const [draft, setDraft] = useState(account)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [guardsOpen, setGuardsOpen] = useState(false)
   const [showKeys, setShowKeys] = useState(false)
 
-  useEffect(() => { setAccountDraft(account) }, [account])
-  useEffect(() => { setPlatformDraft(platform) }, [platform])
+  useEffect(() => { setDraft(account) }, [account])
 
-  const dirty =
-    JSON.stringify(accountDraft) !== JSON.stringify(account) ||
-    JSON.stringify(platformDraft) !== JSON.stringify(platform)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(account)
 
-  const patchAccount = (field: keyof AccountConfig, value: unknown) => {
-    setAccountDraft((d) => ({ ...d, [field]: value }))
-  }
-
-  const patchPlatform = (field: string, value: unknown) => {
-    setPlatformDraft((d) => ({ ...d, [field]: value }) as PlatformConfig)
+  const patch = (field: string, value: unknown) => {
+    setDraft((d) => ({ ...d, [field]: value }) as AccountConfig)
   }
 
   const handleSave = async () => {
     setSaving(true); setMsg('')
     try {
-      if (JSON.stringify(platformDraft) !== JSON.stringify(platform)) {
-        await onSavePlatform(platformDraft)
-      }
-      if (JSON.stringify(accountDraft) !== JSON.stringify(account)) {
-        await onSaveAccount(accountDraft)
-      }
+      await onSaveAccount(draft)
       setMsg('Saved')
       setTimeout(() => setMsg(''), 2000)
     } catch (err) {
@@ -530,7 +497,7 @@ function EditDialog({ account, platform, health, onSaveAccount, onSavePlatform, 
     }
   }
 
-  const guardTypes = platform.type === 'ccxt' ? CRYPTO_GUARD_TYPES : SECURITIES_GUARD_TYPES
+  const guardTypes = account.type === 'ccxt' ? CRYPTO_GUARD_TYPES : SECURITIES_GUARD_TYPES
 
   return (
     <Dialog onClose={onClose} width="w-[560px]">
@@ -554,13 +521,13 @@ function EditDialog({ account, platform, health, onSaveAccount, onSavePlatform, 
           <div className="mb-3">
             <span className="text-[12px] text-text-muted">Type</span>
             <span className="ml-2 text-[12px] font-medium text-text">
-              {platform.type === 'ccxt' ? 'CCXT' : 'Alpaca'}
+              {account.type === 'ccxt' ? 'CCXT' : 'Alpaca'}
             </span>
           </div>
-          {platformDraft.type === 'ccxt' ? (
-            <CcxtConnectionFields draft={platformDraft} onPatch={patchPlatform} />
+          {draft.type === 'ccxt' ? (
+            <CcxtConnectionFields draft={draft} onPatch={patch} />
           ) : (
-            <AlpacaConnectionFields draft={platformDraft} onPatch={patchPlatform} />
+            <AlpacaConnectionFields draft={draft} onPatch={patch} />
           )}
         </Section>
 
@@ -577,14 +544,14 @@ function EditDialog({ account, platform, health, onSaveAccount, onSavePlatform, 
           </div>
         }>
           <Field label="API Key">
-            <input className={inputClass} type={showKeys ? 'text' : 'password'} value={accountDraft.apiKey || ''} onChange={(e) => patchAccount('apiKey', e.target.value)} placeholder="Not configured" />
+            <input className={inputClass} type={showKeys ? 'text' : 'password'} value={draft.apiKey || ''} onChange={(e) => patch('apiKey', e.target.value)} placeholder="Not configured" />
           </Field>
-          <Field label={platform.type === 'alpaca' ? 'Secret Key' : 'API Secret'}>
-            <input className={inputClass} type={showKeys ? 'text' : 'password'} value={accountDraft.apiSecret || ''} onChange={(e) => patchAccount('apiSecret', e.target.value)} placeholder="Not configured" />
+          <Field label={account.type === 'alpaca' ? 'Secret Key' : 'API Secret'}>
+            <input className={inputClass} type={showKeys ? 'text' : 'password'} value={draft.apiSecret || ''} onChange={(e) => patch('apiSecret', e.target.value)} placeholder="Not configured" />
           </Field>
-          {platform.type === 'ccxt' && (
+          {account.type === 'ccxt' && (
             <Field label="Password (optional)">
-              <input className={inputClass} type={showKeys ? 'text' : 'password'} value={accountDraft.password || ''} onChange={(e) => patchAccount('password', e.target.value)} placeholder="Required by some exchanges (e.g. OKX)" />
+              <input className={inputClass} type={showKeys ? 'text' : 'password'} value={'password' in draft ? (draft as CcxtAccountConfig).password || '' : ''} onChange={(e) => patch('password', e.target.value)} placeholder="Required by some exchanges (e.g. OKX)" />
             </Field>
           )}
         </Section>
@@ -602,16 +569,16 @@ function EditDialog({ account, platform, health, onSaveAccount, onSavePlatform, 
             >
               <polyline points="9 18 15 12 9 6" />
             </svg>
-            Guards ({accountDraft.guards.length})
+            Guards ({draft.guards.length})
           </button>
           {guardsOpen && (
             <div className="mt-3">
               <GuardsSection
-                guards={accountDraft.guards}
+                guards={draft.guards}
                 guardTypes={guardTypes}
                 description="Guards validate operations before execution. Order matters."
-                onChange={(guards) => patchAccount('guards', guards)}
-                onChangeImmediate={(guards) => patchAccount('guards', guards)}
+                onChange={(guards) => patch('guards', guards)}
+                onChangeImmediate={(guards) => patch('guards', guards)}
               />
             </div>
           )}
@@ -639,7 +606,7 @@ function EditDialog({ account, platform, health, onSaveAccount, onSavePlatform, 
 // ==================== Connection Fields ====================
 
 function CcxtConnectionFields({ draft, onPatch }: {
-  draft: CcxtPlatformConfig
+  draft: CcxtAccountConfig
   onPatch: (field: string, value: unknown) => void
 }) {
   return (
@@ -662,7 +629,7 @@ function CcxtConnectionFields({ draft, onPatch }: {
 }
 
 function AlpacaConnectionFields({ draft, onPatch }: {
-  draft: AlpacaPlatformConfig
+  draft: AlpacaAccountConfig
   onPatch: (field: string, value: unknown) => void
 }) {
   return (

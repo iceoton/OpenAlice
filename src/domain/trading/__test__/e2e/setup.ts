@@ -1,16 +1,16 @@
 /**
  * E2E test setup — shared, lazily-initialized broker instances.
  *
- * Uses the same code path as main.ts: loadTradingConfig → createPlatformFromConfig
- * → createBrokerFromConfig. Only selects accounts on sandbox/paper/demoTrading platforms.
+ * Uses the same code path as main.ts: readAccountsConfig → createBroker.
+ * Only selects accounts on sandbox/paper/demoTrading platforms.
  *
  * Singleton: first call loads config + inits all brokers. Subsequent calls
  * return the same instances. Requires fileParallelism: false in vitest config.
  */
 
-import { loadTradingConfig } from '@/core/config.js'
+import { readAccountsConfig } from '@/core/config.js'
 import type { IBroker } from '../../brokers/types.js'
-import { createPlatformFromConfig, createBrokerFromConfig } from '../../brokers/factory.js'
+import { createBroker } from '../../brokers/factory.js'
 
 export interface TestAccount {
   id: string
@@ -33,22 +33,17 @@ export function getTestAccounts(): Promise<TestAccount[]> {
 }
 
 async function initAll(): Promise<TestAccount[]> {
-  const { platforms, accounts } = await loadTradingConfig()
-  const platformMap = new Map(platforms.map(p => [p.id, p]))
+  const accounts = await readAccountsConfig()
   const result: TestAccount[] = []
 
   for (const acct of accounts) {
-    const platCfg = platformMap.get(acct.platformId)
-    if (!platCfg) continue
-
     const isSafe =
-      (platCfg.type === 'ccxt' && (platCfg.sandbox || platCfg.demoTrading)) ||
-      (platCfg.type === 'alpaca' && platCfg.paper)
+      (acct.type === 'ccxt' && (acct.sandbox || acct.demoTrading)) ||
+      (acct.type === 'alpaca' && acct.paper)
     if (!isSafe) continue
     if (!acct.apiKey) continue
 
-    const platform = createPlatformFromConfig(platCfg)
-    const broker = createBrokerFromConfig(platform, acct)
+    const broker = createBroker(acct)
 
     try {
       await broker.init()
@@ -60,7 +55,7 @@ async function initAll(): Promise<TestAccount[]> {
     result.push({
       id: acct.id,
       label: acct.label ?? acct.id,
-      provider: platCfg.type,
+      provider: acct.type,
       broker,
     })
   }
