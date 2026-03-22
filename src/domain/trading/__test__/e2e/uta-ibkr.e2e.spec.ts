@@ -1,10 +1,9 @@
 /**
  * UTA — IBKR paper lifecycle e2e.
  *
- * Full Trading-as-Git flow: stage → commit → push → sync → verify
- * against IBKR paper trading (US equities via TWS/Gateway).
- *
- * Skips when market is closed — TWS paper won't fill orders outside trading hours.
+ * Two groups:
+ * - Order lifecycle (any time): limit order stage → commit → push → cancel
+ * - Full fill flow (market hours): market order → fill → verify → close
  *
  * Run: pnpm test:e2e
  */
@@ -15,20 +14,66 @@ import { UnifiedTradingAccount } from '../../UnifiedTradingAccount.js'
 import type { IBroker } from '../../brokers/types.js'
 import '../../contract-ext.js'
 
-describe('UTA — IBKR lifecycle (AAPL)', () => {
-  let broker: IBroker | null = null
-  let marketOpen = false
+let broker: IBroker | null = null
+let marketOpen = false
 
-  beforeAll(async () => {
-    const all = await getTestAccounts()
-    const ibkr = filterByProvider(all, 'ibkr')[0]
-    if (!ibkr) return
-    broker = ibkr.broker
-    const clock = await broker.getMarketClock()
-    marketOpen = clock.isOpen
-    console.log(`UTA IBKR: market ${marketOpen ? 'OPEN' : 'CLOSED'}`)
-  }, 60_000)
+beforeAll(async () => {
+  const all = await getTestAccounts()
+  const ibkr = filterByProvider(all, 'ibkr')[0]
+  if (!ibkr) return
+  broker = ibkr.broker
+  const clock = await broker.getMarketClock()
+  marketOpen = clock.isOpen
+  console.log(`UTA IBKR: market ${marketOpen ? 'OPEN' : 'CLOSED'}`)
+}, 60_000)
 
+// ==================== Order lifecycle (any time) ====================
+
+describe('UTA — IBKR order lifecycle', () => {
+  beforeEach(({ skip }) => { if (!broker) skip('no IBKR paper account') })
+
+  it('limit order: stage → commit → push → cancel', async () => {
+    const uta = new UnifiedTradingAccount(broker!)
+
+    // Stage a limit buy at $1 (won't fill)
+    const addResult = uta.stagePlaceOrder({
+      aliceId: `${uta.id}|AAPL`,
+      symbol: 'AAPL',
+      side: 'buy',
+      type: 'limit',
+      price: 1.00,
+      qty: 1,
+      timeInForce: 'gtc',
+    })
+    expect(addResult.staged).toBe(true)
+
+    const commitResult = uta.commit('e2e: limit buy 1 AAPL @ $1')
+    expect(commitResult.prepared).toBe(true)
+    console.log(`  committed: hash=${commitResult.hash}`)
+
+    const pushResult = await uta.push()
+    console.log(`  pushed: submitted=${pushResult.submitted.length}, status=${pushResult.submitted[0]?.status}`)
+    expect(pushResult.submitted).toHaveLength(1)
+    expect(pushResult.rejected).toHaveLength(0)
+    expect(pushResult.submitted[0].orderId).toBeDefined()
+
+    const orderId = pushResult.submitted[0].orderId!
+
+    // Cancel the order
+    uta.stageCancelOrder({ orderId })
+    uta.commit('e2e: cancel limit order')
+    const cancelPush = await uta.push()
+    console.log(`  cancel pushed: submitted=${cancelPush.submitted.length}, status=${cancelPush.submitted[0]?.status}`)
+    expect(cancelPush.submitted).toHaveLength(1)
+
+    // Verify log has 2 commits
+    expect(uta.log().length).toBeGreaterThanOrEqual(2)
+  }, 30_000)
+})
+
+// ==================== Full fill flow (market hours only) ====================
+
+describe('UTA — IBKR fill flow (AAPL)', () => {
   beforeEach(({ skip }) => {
     if (!broker) skip('no IBKR paper account')
     if (!marketOpen) skip('market closed')

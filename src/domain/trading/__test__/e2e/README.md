@@ -52,11 +52,12 @@ it('places order', async ({ skip }) => {
 ## Market Hours
 
 - **Crypto (CCXT)**: 24/7, no market hours check needed
-- **Equities (Alpaca, IBKR)**: Split into two `describe` groups:
-  - **Connectivity** — runs any time (getAccount, getPositions, searchContracts, getMarketClock)
-  - **Trading** — requires market open (getQuote, placeOrder, closePosition)
+- **Equities (Alpaca, IBKR)**: Split into three `describe` groups:
+  - **Connectivity** — any time (getAccount, getPositions, searchContracts, getMarketClock)
+  - **Order lifecycle** — any time (limit order place → query → cancel — exchanges accept orders outside trading hours, they just don't fill)
+  - **Fill + position** — market hours only (market order → fill → verify position → close)
 
-Check `broker.getMarketClock().isOpen` in `beforeAll`, skip trading group via `beforeEach`.
+Check `broker.getMarketClock().isOpen` in `beforeAll`, skip fill group via `beforeEach`. Connectivity and order lifecycle always run.
 
 ## Setup
 

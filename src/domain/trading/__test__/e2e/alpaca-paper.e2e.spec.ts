@@ -1,11 +1,10 @@
 /**
  * AlpacaBroker e2e — real orders against Alpaca paper trading.
  *
- * Split into two groups:
- * - Connectivity tests: run any time (account info, positions, search, clock)
- * - Trading tests: only when market is open (quotes, orders, close)
- *
- * Preconditions handled in beforeEach — individual tests don't need skip checks.
+ * Three groups:
+ * - Connectivity: any time (account, positions, search, clock)
+ * - Order lifecycle: any time (limit order place → query → cancel)
+ * - Fill + position: market hours only (market order → fill → close)
  *
  * Run: pnpm test:e2e
  */
@@ -68,9 +67,50 @@ describe('AlpacaBroker — connectivity', () => {
   })
 })
 
-// ==================== Trading (market hours only) ====================
+// ==================== Order lifecycle (any time — limit orders accepted outside market hours) ====================
 
-describe('AlpacaBroker — trading (market hours)', () => {
+describe('AlpacaBroker — order lifecycle', () => {
+  beforeEach(({ skip }) => { if (!broker) skip('no Alpaca paper account') })
+
+  it('places limit buy → queries → cancels', async () => {
+    const contract = new Contract()
+    contract.symbol = 'AAPL'
+    contract.secType = 'STK'
+
+    // Place a limit buy at $1 — will never fill, safe to leave open briefly
+    const order = new Order()
+    order.action = 'BUY'
+    order.orderType = 'LMT'
+    order.lmtPrice = 1.00
+    order.totalQuantity = new Decimal('1')
+    order.tif = 'GTC'
+
+    const placed = await broker!.placeOrder(contract, order)
+    console.log(`  placeOrder LMT: success=${placed.success}, orderId=${placed.orderId}, status=${placed.orderState?.status}`)
+    expect(placed.success).toBe(true)
+    expect(placed.orderId).toBeDefined()
+
+    // Query order
+    await new Promise(r => setTimeout(r, 1000))
+    const detail = await broker!.getOrder(placed.orderId!)
+    console.log(`  getOrder: status=${detail?.orderState.status}`)
+    expect(detail).not.toBeNull()
+
+    // Batch query
+    const orders = await broker!.getOrders([placed.orderId!])
+    console.log(`  getOrders: ${orders.length} results`)
+    expect(orders.length).toBe(1)
+
+    // Cancel
+    const cancelled = await broker!.cancelOrder(placed.orderId!)
+    console.log(`  cancelOrder: success=${cancelled.success}, status=${cancelled.orderState?.status}`)
+    expect(cancelled.success).toBe(true)
+  }, 30_000)
+})
+
+// ==================== Fill + position (market hours only) ====================
+
+describe('AlpacaBroker — fill + position (market hours)', () => {
   beforeEach(({ skip }) => {
     if (!broker) skip('no Alpaca paper account')
     if (!marketOpen) skip('market closed')
